@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: agc-assia
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ASSISTANT_NAME
+        value: Assia
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: IGNORE_GROUPS
+        value: "true"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: DASHBOARD_KEY
+        sync: false
+      - key: MONGODB_DB
+        value: agc_assia

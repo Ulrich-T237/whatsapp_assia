@@ -1,0 +1,26 @@
+# Koyeb: App → Create → GitHub repo → this Dockerfile
+# Instance: nano / 512 MB  |  Region: Frankfurt or Washington
+# Health check: HTTP  /health
+#
+# Environment:
+#   ASSISTANT_NAME=Assia
+#   GEMINI_MODEL=gemini-2.5-flash
+#   GEMINI_API_KEY=        (secret)
+#   MONGODB_URI=           (secret)
+#   MONGODB_DB=agc_assia
+#   DASHBOARD_KEY=         (secret)
+#   IGNORE_GROUPS=true
+#
+# Start command is the Dockerfile CMD (node index.js).
+# Port: 3000
+name: agc-assia
+services:
+  - name: web
+    instance_type: nano
+    ports:
+      - port: 3000
+        protocol: http
+    health_checks:
+      - http:
+          path: /health
+          port: 3000
