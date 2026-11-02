@@ -44,7 +44,18 @@ function dashboardOk(req) {
   const url = new URL(req.url, 'http://localhost');
   const q = url.searchParams.get('key') || '';
   const hdr = String(req.headers['x-dashboard-key'] || '');
-  return q === DASHBOARD_KEY || hdr === DASHBOARD_KEY;
+  if (q === DASHBOARD_KEY || hdr === DASHBOARD_KEY) return true;
+  const ref = String(req.headers.referer || '');
+  try {
+    if (new URL(ref).searchParams.get('key') === DASHBOARD_KEY) return true;
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
+
+function keyQuery() {
+  return DASHBOARD_KEY ? `?key=${encodeURIComponent(DASHBOARD_KEY)}` : '';
 }
 
 function jidUser(jid) {
@@ -185,9 +196,9 @@ function pageHtml() {
        <p class="hint">From another phone, write <b>hi</b> or <b>bonjour</b> to that number.</p>`
     : status.qr
       ? `<p>WhatsApp → Settings → <b>Linked devices</b> → Link a device</p>
-         <p><img src="/qr.png" width="260" height="260" alt="QR"></p>
+         <p><img src="/qr.png${keyQuery()}" width="260" height="260" alt="QR"></p>
          <p class="hint">Or pair with a code (no QR):</p>
-         <form method="POST" action="/pair">
+         <form method="POST" action="/pair${keyQuery()}">
            <input name="phone" placeholder="2376XXXXXXXX" inputmode="numeric" autocomplete="tel">
            <button type="submit">Get pairing code</button>
          </form>
