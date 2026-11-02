@@ -1,5 +1,6 @@
 const company = {
-  name: 'AGC Assurances',
+  name: 'AGC',
+  legal: 'Assurances Générales du Cameroun',
   slogan: 'Le gage de votre sécurité',
   email: 'agc@agc-assurances.com',
   complaintsEmail: 'reclamationsclients@agc-assurances.com',
@@ -8,37 +9,49 @@ const company = {
   healthComplaintsPhone: '+237 658 05 23 00',
 };
 
+function displayName() {
+  const raw = String(process.env.ASSISTANT_NAME || 'ASSIAA').trim();
+  if (!raw || /^assia$/i.test(raw)) return 'ASSIAA';
+  return raw;
+}
+
 const persona = {
-  name: String(process.env.ASSISTANT_NAME || 'Assia').trim() || 'Assia',
-  titleFr: 'votre conseillère AGC Assurances',
-  titleEn: 'your AGC Assurances advisor',
+  get name() {
+    return displayName();
+  },
+  titleFr: 'votre conseillère Assurances Générales du Cameroun (AGC)',
+  titleEn: 'your advisor at Assurances Générales du Cameroun (AGC)',
   gender: 'feminine',
 };
 
 const productHooks = {
   auto: {
-    fr: 'Un choc à Bonanjo à 18 h. Vitres, pare-chocs, l’autre conducteur — et vous, sans la *RC obligatoire* ? AGC est là pour ça. Je ne donne pas de tarif ici.',
-    en: 'A bump in Bonanjo at 6 p.m. Glass, bumper, the other driver — and you with no *compulsory third-party cover*? That’s AGC. I don’t quote a price here.',
+    fr: 'Un choc à Bonanjo à 18 h. Vitres, pare-chocs, l’autre conducteur — et vous, sans la *RC obligatoire* ? AGC est là. 🚗',
+    en: 'A bump in Bonanjo at 6 p.m. Glass, bumper, the other driver — and you with no *compulsory cover*? That’s AGC. 🚗',
   },
   sante: {
-    fr: 'La pharmacie est pleine, l’enfant a de la fièvre, le bon de prise en charge n’arrive pas. La *carte santé biométrique AGC* est faite pour ce moment-là.',
-    en: 'The pharmacy is packed, the child has a fever, the guarantee paper isn’t here. The *AGC biometric health card* is for that moment.',
+    fr: 'La pharmacie est pleine, l’enfant a de la fièvre. La *carte santé biométrique AGC* est faite pour ce moment-là. 🩺',
+    en: 'The pharmacy is packed, the child has a fever. The *AGC biometric health card* is for that moment. 🩺',
   },
   voyage: {
-    fr: 'Un mal de ventre à 2 h du matin dans un hôtel à l’étranger. *Inter Partner Assistance* organise les soins — si vous avez le contrat voyage AGC. Pas de prime inventée ici.',
-    en: 'Stomach pain at 2 a.m. in a hotel abroad. *Inter Partner Assistance* organises care — if you have AGC travel cover. No invented premium here.',
+    fr: 'Un mal de ventre à 2 h du matin dans un hôtel à l’étranger. *Inter Partner Assistance* organise les soins. ✈️',
+    en: 'Stomach pain at 2 a.m. in a hotel abroad. *Inter Partner Assistance* organises care. ✈️',
+  },
+  mrh: {
+    fr: 'L’eau descend du plafond à Bastos, le salon est trempé. La *MRH* AGC protège votre maison : incendie, vol, dégâts des eaux. 🏠',
+    en: 'Water through the ceiling in Bastos. AGC *home multi-risk (MRH)* is fire, theft, water — your house, not a magic price. 🏠',
   },
   multi: {
-    fr: 'L’eau descend du plafond à Bastos, le salon est trempé. *Multirisques* AGC, c’est habitation, commerce, bureau — incendie, vol, dégâts des eaux. Devis avec un conseiller, pas un chiffre magique.',
-    en: 'Water through the ceiling in Bastos, the living room soaked. AGC *multi-risk* is home, shop, office — fire, theft, water. A counsellor quotes. I don’t.',
+    fr: '*Multirisques* AGC : habitation, commerce, bureau, PME — incendie, vol, dégâts des eaux. 🏢',
+    en: 'AGC *multi-risk*: home, shop, office, SME — fire, theft, water. 🏢',
   },
   transport: {
-    fr: 'Un conteneur, une route de Douala, un vol, une disparition. *Transport AGC* suit la marchandise — air, mer, terre. On ouvre un devis, on n’invente pas le taux.',
-    en: 'A container, a Douala road, a theft, a disappearance. AGC *cargo* follows the goods — air, sea, land. We open a quote request. We don’t invent a rate.',
+    fr: 'Un conteneur, une route de Douala, une disparition. *Transport AGC* suit la marchandise — air, mer, terre. 🚚',
+    en: 'A container, a Douala road, a disappearance. AGC *cargo* follows the goods — air, sea, land. 🚚',
   },
   rc: {
-    fr: 'Le ballon casse la vitre du voisin. *RC chef de famille* AGC, c’est pour rester solvable face à un accident involontaire sous votre toit.',
-    en: 'The ball goes through the neighbour’s window. AGC *family liability* is so you stay solvent after an accident at home you didn’t mean.',
+    fr: 'Le ballon casse la vitre du voisin. *RC chef de famille* AGC, c’est rester solvable. ⚖️',
+    en: 'The ball goes through the neighbour’s window. AGC *family liability* keeps you solvent. ⚖️',
   },
 };
 
@@ -65,15 +78,55 @@ function aiNote(lang) {
     : `_Les phrases libres peuvent passer par Google Gemini. N’envoyez pas de CNI, dossier complet ni mot de passe ici. Les devis/sinistres restent dans ce bot._`;
 }
 
+function doualaHour() {
+  try {
+    const h = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Africa/Douala',
+      hour: 'numeric',
+      hourCycle: 'h23',
+    }).format(new Date());
+    return Number(String(h).replace(/\D/g, '')) || new Date().getHours();
+  } catch {
+    return new Date().getHours();
+  }
+}
+
+function clockHello(lang) {
+  const hour = doualaHour();
+  const en = lang === 'en';
+  if (hour < 12) return en ? 'Good morning ☀️🌸' : 'Bonjour ☀️🌸';
+  if (hour < 18) return en ? 'Good afternoon 🌤️😊' : 'Bon après-midi 🌤️😊';
+  return en ? 'Good evening 🌙✨' : 'Bonsoir 🌙✨';
+}
+
 function introText(lang, first) {
   const en = lang === 'en';
   const n = persona.name;
-  if (first) {
-    return en
-      ? `Hi 👋 I’m *${n}*, ${persona.titleEn}.\nTell me what you need — or pick below 😊`
-      : `Bonjour 👋 Je suis *${n}*, ${persona.titleFr}.\nDites-moi ce dont vous avez besoin — ou choisissez ci-dessous 😊`;
+  if (!first) {
+    return en ? `Here you go 😊` : `Avec plaisir 😊`;
   }
-  return en ? `Here you go 😊` : `Avec plaisir 😊`;
+  if (en) {
+    return [
+      `${clockHello('en')}`,
+      ``,
+      `I’m *${n}* ☺️`,
+      `${persona.titleEn} 🛡️`,
+      ``,
+      `My name is inspired by a beautiful Cameroonian expression 🇨🇲💛 — compassion, listening, comfort, and standing with someone going through a hard time. 🤝`,
+      ``,
+      `I’m glad to walk with you. So tell me: how can I help you today? ✨😊`,
+    ].join('\n');
+  }
+  return [
+    `${clockHello('fr')}`,
+    ``,
+    `Je suis *${n}* ☺️`,
+    `${persona.titleFr} 🛡️`,
+    ``,
+    `Mon nom est inspiré d’une belle expression camerounaise 🇨🇲💛 : elle parle de compassion, d’écoute, de réconfort et de solidarité envers une personne qui traverse un moment difficile. 🤝`,
+    ``,
+    `Je suis ravie de vous accompagner. Alors, dites-moi : comment puis-je vous aider aujourd’hui ? ✨😊`,
+  ].join('\n');
 }
 
 module.exports = {
@@ -85,4 +138,5 @@ module.exports = {
   disclaimer,
   aiNote,
   introText,
+  clockHello,
 };

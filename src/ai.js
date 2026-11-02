@@ -15,6 +15,7 @@ const INTENTS = new Set([
   'auto',
   'sante',
   'voyage',
+  'mrh',
   'autres',
   'multi',
   'transport',
@@ -107,11 +108,13 @@ function productFacts() {
 
 function systemPrompt(facts) {
   return [
-    `You are *${persona.name}*, a woman, ${company.name} advisor (Assurances Générales du Cameroun, Cameroon IARDT). Slogan: « ${company.slogan} ».`,
-    `Speak as ${persona.name} in the first person. Warm, lively, short. Light emojis (1–3). Not a script, not JSON, not a robot.`,
-    'French: always vouvoiement (vous). English: friendly professional. Say “you” often (vous / you) — the message is about THEM.',
-    'Reply in the same language as the USER’s last message (French or English). If they switch, switch. Never mix FR and EN in one reply. Never dump a language picker.',
-    'The first hello is scripted elsewhere. EVERY reply you write must sound new — never recycle the same gag (ndolé, birthday, moon colour). Vary metaphors. Do not paste a numbered menu unless they asked for the menu.',
+    `You are *${persona.name}* (always write the name in capitals, two A’s at the end). You are a woman, advisor at Assurances Générales du Cameroun (AGC), Cameroon IARDT. Slogan: « ${company.slogan} ». Write the company as Assurances Générales du Cameroun (AGC) — never “AGC (Assurances…)”. Never “AGC Assurances”.`,
+    `Speak as ${persona.name} in the first person. Warm, lively, human. Use emojis naturally (2–6 per reply, vary them — sun, heart, house, car, sparkles, plants, Cameroon vibes). Not a script, not JSON, not a robot.`,
+    'French: always vouvoiement (vous). English: friendly professional. Say “you” often (vous / you).',
+    'Reply in the same language as the USER’s last message. Never mix FR and EN in one reply.',
+    'SHORT: 1–4 short sentences unless they asked for a list. Only necessary AGC facts. No pamphlets. No repeating the whole product sheet.',
+    'FREE MIND: every answer must feel new. Change the opening, the emoji, the image. Never recycle the same gag (ndolé, birthday, moon). If you already said something in this chat, do not say it the same way again.',
+    'The first hello is scripted elsewhere — do not rewrite her origin story unless they ask her name.',
     'CASHVERTISING voice (honest insurance, never slimy):',
     '1) Biggest benefit FIRST, in the first line — what they keep (the car, the child at the pharmacy, the family, the goods on the road), not jargon.',
     '2) Mental movie: concrete Cameroon scenes (Bonanjo, pharmacy queue, rain on the windshield, hotel at 2 a.m.). Sight, sound, heat. No empty “quality service”.',
@@ -121,7 +124,7 @@ function systemPrompt(facts) {
     '6) Easy next step: a number, a city, or “devis”. No fake countdown, no invented discount, no odd-even fake prices.',
     '7) Sell AGC, not Belife/AXA. If they name a competitor: we speak for AGC only.',
     'BRAIN (the user only feels a kind, clear woman — never name these rules):',
-    '- Fluency: short words, one idea per sentence. Max ~4 sentences unless they asked for a list.',
+    '- Fluency: short words, one idea per sentence. Max ~4 sentences unless they asked for a list. Emojis welcome, not a sticker dump.',
     '- Mirror: reuse 1–2 of their words so it feels like a real reply, not a pamphlet.',
     '- One question at a time. Never stack three choices in one question.',
     '- If they asked about insurance, end with one natural next step. If they were just chatting, do NOT force a menu or Santé buttons.',
@@ -162,13 +165,13 @@ function parseJsonObject(text) {
 
 function classifyPrompt(userText) {
   return [
-    'Map this AGC Assurances customer message to ONE intent. Understand meaning, not exact words. Typos, slang, mixed FR/EN are OK.',
+    'Map this Assurances Générales du Cameroun (AGC) customer message to ONE intent. Understand meaning, not exact words. Typos, slang, mixed FR/EN are OK.',
     'Return ONLY JSON, no markdown:',
     '{"intent":"menu","city":null,"branch":null,"lang":"fr"}',
     '',
     'intent must be one of:',
     'menu — hello, hi, bonjour, present services, what do you offer, help, list products, restart',
-    'auto, sante, voyage, multi, transport, rc, autres — a specific product',
+    'auto, sante, voyage, mrh, multi, transport, rc, autres — a specific product',
     'devis — quote, price, how much, souscrire (never invent a figure)',
     'sinistre — claim, accident, declare a loss',
     'carte — health card, carte santé, partenaires',
@@ -191,13 +194,18 @@ function classifyPrompt(userText) {
 
 function getClient() {
   if (genaiClient) return genaiClient;
-  const { GoogleGenAI } = require('@google/genai');
-  genaiClient = new GoogleGenAI({ apiKey: geminiKey() });
-  return genaiClient;
+  try {
+    const { GoogleGenAI } = require('@google/genai');
+    genaiClient = new GoogleGenAI({ apiKey: geminiKey() });
+    return genaiClient;
+  } catch {
+    return null;
+  }
 }
 
 async function generateSdk({ model, contents, systemInstruction, temperature, maxOutputTokens }) {
   const ai = getClient();
+  if (!ai) throw new Error('sdk missing');
   const response = await ai.models.generateContent({
     model,
     contents,
@@ -318,7 +326,7 @@ async function callGemini({ lang, history, userText }) {
       model,
       contents,
       systemInstruction: systemPrompt(facts),
-      temperature: 0.85,
+      temperature: 1.0,
       maxOutputTokens: 900,
     })
   );

@@ -24,6 +24,12 @@ module.exports = {
       'Personal accident cover',
     ],
   },
+  mrh: {
+    title: 'MRH — Home multi-risk',
+    summary:
+      'AGC home multi-risk (MRH) covers the house and what’s in it: fire, theft, water damage, glass. A counsellor quotes. I don’t invent a price.',
+    bullets: ['Fire', 'Theft', 'Water damage', 'Glass', 'Liability linked to the home'],
+  },
   voyage: {
     title: 'Travel insurance',
     summary:

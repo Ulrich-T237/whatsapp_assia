@@ -223,11 +223,11 @@ function localAnswer(lang, text) {
     en
       ? [
           `I’m *${n}* at AGC 😊 I cover cars, health, travel, branches. Tell me what you need in your own words.`,
-          `Still with you — *${n}*, AGC Assurances. Motor, health, a city, or just say it plainly.`,
+          `Still with you — *${n}*, Assurances Générales du Cameroun (AGC). Motor, health, a city, or just say it plainly.`,
         ]
       : [
           `Je suis *${n}* chez AGC 😊 Auto, santé, voyage, agences. Dites-le avec vos mots.`,
-          `Toujours là — *${n}*, AGC Assurances. Auto, santé, une ville, ou une phrase simple.`,
+          `Toujours là — *${n}*, Assurances Générales du Cameroun (AGC). Auto, santé, une ville, ou une phrase simple.`,
         ],
     text
   );
@@ -235,8 +235,8 @@ function localAnswer(lang, text) {
 
 function hqText(en) {
   return en
-    ? `*AGC Assurances* is in Douala:\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nMon–Fri 8:00–18:00 · Sat 9:00–13:00 · Sunday closed.\n\nAnother city? Type it (Douala, Yaoundé, Bafoussam…).`
-    : `*AGC Assurances*, Douala :\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nLun–Ven 8h–18h · samedi 9h–13h · dimanche fermé.\n\nUne autre ville ? Écrivez-la (Douala, Yaoundé, Bafoussam…).`;
+    ? `*Assurances Générales du Cameroun (AGC)* is in Douala:\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nMon–Fri 8:00–18:00 · Sat 9:00–13:00 · Sunday closed.\n\nAnother city? Type it (Douala, Yaoundé, Bafoussam…).`
+    : `*Assurances Générales du Cameroun (AGC)*, Douala :\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nLun–Ven 8h–18h · samedi 9h–13h · dimanche fermé.\n\nUne autre ville ? Écrivez-la (Douala, Yaoundé, Bafoussam…).`;
 }
 
 function hqReply(lang) {
@@ -289,19 +289,19 @@ function markGreeted(from) {
   return first;
 }
 
-function welcomeReply(from, lang) {
+function welcomeReply(from, lang, full) {
   sessions.get(from).greeted = true;
   const en = lang === 'en';
   const menu = mainMenu(lang);
   menu.body = en
-    ? 'Pick an option — or type auto, health, a city…'
-    : 'Choisissez une option — ou écrivez auto, santé, une ville…';
+    ? 'Pick below — or just type it 👇'
+    : 'Choisissez ci-dessous — ou écrivez-le 👇';
   menu.footer = en ? 'Français / English — type it anytime' : 'Français / English — tapez-le quand vous voulez';
-  return [{ type: 'text', text: introText(lang, true) }, menu];
+  return [{ type: 'text', text: introText(lang, full !== false) }, menu];
 }
 
 function welcomeOrMenu(from) {
-  return welcomeReply(from, langOf(from));
+  return welcomeReply(from, langOf(from), true);
 }
 
 function mainMenu(lang) {
@@ -320,9 +320,10 @@ function mainMenu(lang) {
       {
         title: en ? 'Products' : 'Produits',
         rows: [
-          { id: 'auto', title: en ? 'Motor insurance' : 'Assurance auto' },
-          { id: 'sante', title: en ? 'Health insurance' : 'Assurance santé' },
-          { id: 'voyage', title: en ? 'Travel insurance' : 'Assurance voyage' },
+          { id: 'auto', title: en ? 'Motor' : 'Automobile' },
+          { id: 'sante', title: en ? 'Health' : 'Santé' },
+          { id: 'voyage', title: en ? 'Travel' : 'Voyage' },
+          { id: 'mrh', title: en ? 'Home MRH' : 'MRH habitation' },
           { id: 'autres', title: en ? 'Other products' : 'Autres produits' },
         ],
       },
@@ -332,7 +333,6 @@ function mainMenu(lang) {
           { id: 'devis', title: en ? 'Get a quote' : 'Demander un devis' },
           { id: 'sinistre', title: en ? 'File a claim' : 'Déclarer un sinistre' },
           { id: 'carte', title: en ? 'Health card' : 'Carte santé' },
-          { id: 'conseiller', title: en ? 'Talk to an agent' : 'Parler à un conseiller' },
         ],
       },
       {
@@ -360,7 +360,6 @@ function productReply(id, lang) {
       buttons: [
         { id: `devis_${id}`, title: en ? 'Yes, a quote' : 'Oui, un devis' },
         { id: 'menu', title: 'Menu' },
-        { id: 'conseiller', title: en ? 'An agent' : 'Un conseiller' },
       ],
     },
   ];
@@ -369,14 +368,18 @@ function productReply(id, lang) {
 function otherProducts(lang) {
   const en = lang === 'en';
   return [
-    productReply('multi', lang)[0],
-    productReply('transport', lang)[0],
-    productReply('rc', lang)[0],
+    {
+      type: 'text',
+      text: en
+        ? `*Other AGC products* ✨\n\n🚚 *Transport* — goods by road, sea or air\n⚖️ *Civil liability* — family or company\n🛠️ *Technical risks* — machines, IT, breakdown\n🏢 *Multi-risk* — shops, offices, SMEs\n🩺 *Personal accident*\n\nHome cover is *MRH* — type *MRH*. I keep it short; a counsellor quotes, I don’t.`
+        : `*Autres produits AGC* ✨\n\n🚚 *Transport* — marchandises route, mer, air\n⚖️ *Responsabilité civile* — famille ou entreprise\n🛠️ *Risques techniques* — machines, informatique\n🏢 *Multirisques* — commerces, bureaux, PME\n🩺 *Individuelle accident*\n\nPour la maison, c’est la *MRH* — tapez *MRH*. Je reste brève ; le tarif, c’est un conseiller.`,
+    },
     {
       type: 'buttons',
-      body: en ? 'A quote on one of these?' : 'Un devis sur l’un de ces produits ?',
+      body: en ? 'Want one of these?' : 'Vous voulez l’un de ceux-là ?',
       buttons: [
         { id: 'devis', title: en ? 'Get a quote' : 'Demander un devis' },
+        { id: 'mrh', title: 'MRH' },
         { id: 'menu', title: 'Menu' },
       ],
     },
@@ -466,6 +469,7 @@ function quoteProductList(lang) {
           { id: 'qp_auto', title: en ? 'Motor' : 'Automobile' },
           { id: 'qp_sante', title: en ? 'Health' : 'Santé' },
           { id: 'qp_voyage', title: en ? 'Travel' : 'Voyage' },
+          { id: 'qp_mrh', title: en ? 'Home MRH' : 'MRH habitation' },
           { id: 'qp_multi', title: en ? 'Multi-risk' : 'Multirisques' },
           { id: 'qp_transport', title: en ? 'Cargo' : 'Transport' },
           { id: 'qp_rc', title: en ? 'Liability' : 'Responsabilité civile' },
@@ -552,7 +556,9 @@ function detectIntent(text) {
   if (/auto|voiture|véhicule|vehicule|motor|car|moto|taxi/.test(t)) return 'auto';
   if (/santé|sante|maladie|hôpital|hopital|health/.test(t)) return 'sante';
   if (/voyage|visa|aéroport|aeroport|travel/.test(t)) return 'voyage';
-  if (/multirisque|incendie|habitation|\bmaison\b/.test(t)) return 'multi';
+  if (/\bmrh\b|multirisques? habitation|assurance habitation|\bmaison\b|\blogement\b|home insurance/.test(t))
+    return 'mrh';
+  if (/multirisque|incendie/.test(t)) return 'multi';
   if (/transport|marchandise|cargo/.test(t)) return 'transport';
   if (/\brc\b|responsabilité|responsabilite|liability/.test(t)) return 'rc';
   return null;
@@ -567,7 +573,8 @@ function matchQuoteProduct(text) {
   if (/^(1|auto|automobile|voiture|moto|motor|car|taxi)$/.test(t)) return 'auto';
   if (/^(2|sante|health|maladie)$/.test(t)) return 'sante';
   if (/^(3|voyage|travel)$/.test(t)) return 'voyage';
-  if (/^(4|multi|multirisque|multirisques|habitation|maison|home)$/.test(t)) return 'multi';
+  if (/^(4|mrh|habitation|maison|home)$/.test(t)) return 'mrh';
+  if (/^(multi|multirisque|multirisques)$/.test(t)) return 'multi';
   if (/^(5|transport|cargo|marchandise)$/.test(t)) return 'transport';
   if (/^(6|rc|responsabilite|liability)$/.test(t)) return 'rc';
   if (/\b(auto|moto|voiture|motor)\b/.test(t) && t.split(/\s+/).length <= 4) return 'auto';
@@ -968,8 +975,8 @@ function chitchatReply(from, lang, text) {
       : `4 — et je suis plus forte sur les *devis* que sur le cours de maths 😊`;
   } else if (/belife|axa|saham|askania|sunu/.test(t)) {
     gag = en
-      ? `I speak for *AGC Assurances* only. Want our menu, a branch, or a quote request?`
-      : `Je parle pour *AGC Assurances* seulement. Menu, agence, ou demande de devis ?`;
+      ? `I speak for *Assurances Générales du Cameroun (AGC)* only. Want our menu, a branch, or a quote request?`
+      : `Je parle pour *Assurances Générales du Cameroun (AGC)* seulement. Menu, agence, ou demande de devis ?`;
   } else {
     gag = en
       ? `Noted 😄 I’m *${persona.name}* at AGC — not a 24h gossip line, but I won’t vanish. *Menu* when you want insurance.`

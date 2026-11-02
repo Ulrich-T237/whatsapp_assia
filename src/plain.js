@@ -54,7 +54,7 @@ function langFromFirstMessage(text) {
 }
 
 const TAP =
-  /^(menu|auto|sante|voyage|autres|devis|sinistre|carte|conseiller|agences|horaires|multi|transport|rc|activate|lang_en|lang_fr)$|^(devis_|qp_|reg_|cl_)/;
+  /^(menu|auto|sante|voyage|mrh|autres|devis|sinistre|carte|conseiller|agences|horaires|multi|transport|rc|activate|lang_en|lang_fr)$|^(devis_|qp_|reg_|cl_)/;
 
 async function handleIncomingRich(from, text) {
   const session = sessions.get(from);

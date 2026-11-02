@@ -1,7 +1,7 @@
 const SITE = 'https://agc-assurances.com';
 
 const company = {
-  name: 'AGC Assurances',
+  name: 'Assurances Générales du Cameroun (AGC)',
   slogan: 'Le gage de votre sécurité',
   legal: 'Assurances Générales du Cameroun S.A. — IARDT',
   since: 2002,
@@ -46,6 +46,14 @@ const products = {
       'Assistance, rapatriement de corps, frais funéraires',
       'Individuel accidents corporels',
     ],
+  },
+  mrh: {
+    id: 'mrh',
+    title: 'MRH — Multirisques habitation',
+    url: `${SITE}/assurance-multirisques/`,
+    summary:
+      'La Multirisques Habitation (MRH) AGC protège votre maison et ce qu’il y a dedans : incendie, vol, dégâts des eaux, bris de glaces. Le tarif se fait avec un conseiller — jamais inventé ici.',
+    bullets: ['Incendie', 'Vol', 'Dégâts des eaux', 'Bris de glaces', 'Responsabilités liées au logement'],
   },
   voyage: {
     id: 'voyage',
