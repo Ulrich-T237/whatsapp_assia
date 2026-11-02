@@ -18,7 +18,7 @@ const ai = require('./src/ai');
 
 const PORT = Number(process.env.PORT || 3000);
 const IGNORE_GROUPS = String(process.env.IGNORE_GROUPS || 'true') === 'true';
-const NAME = persona.name || 'Assia';
+const NAME = persona.name || 'ASSIAA';
 const DASHBOARD_KEY = String(process.env.DASHBOARD_KEY || '').trim();
 
 const busy = new Set();
@@ -214,7 +214,7 @@ function pageHtml() {
 </style>
 <main>
   <h1>${NAME}</h1>
-  <p class="sub">AGC Assurances · Le gage de votre sécurité</p>
+  <p class="sub">Assurances Générales du Cameroun (AGC) · Le gage de votre sécurité</p>
   <div class="card">${linked}
     <p class="hint">Do not link 659 / 683 / 233 / 694 if a human already uses those chats.</p>
   </div>
