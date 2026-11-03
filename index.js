@@ -182,6 +182,7 @@ async function startSock() {
     if (type === 'prepend') return;
     for (const msg of messages) {
       const jid = msg.key?.remoteJid || '';
+      let body = '';
       try {
         if (msg.key?.fromMe) {
           status.lastSkip = 'fromMe';
@@ -214,20 +215,11 @@ async function startSock() {
 
         status.lastIn = `${jidUser(jid)}: ${body.slice(0, 80)}`;
         console.log(`[IN ${type}] ${jid} | ${body.slice(0, 120)}`);
-        try {
-          await sock.sendPresenceUpdate('composing', jid);
-        } catch {
-          /* ignore */
-        }
+        sock.sendPresenceUpdate('composing', jid).catch(() => {});
 
-        const reply = await withTimeout(handleIncoming(jid, body), 20000, 'reply-timeout');
+        const reply = await withTimeout(handleIncoming(jid, body), 8000, 'reply-timeout');
         if (reply) {
-          const parts = String(reply).split(/\n\n+/).filter(Boolean);
-          const bubbles = parts.length <= 4 ? parts : [reply];
-          for (let i = 0; i < bubbles.length; i += 1) {
-            await sock.sendMessage(jid, { text: bubbles[i] });
-            if (i < bubbles.length - 1) await sleep(350);
-          }
+          await sock.sendMessage(jid, { text: String(reply) });
           status.lastOut = `${jidUser(jid)}: ${String(reply).slice(0, 80).replace(/\n/g, ' ')}`;
           console.log(`[OUT] ${jid} | ${reply.slice(0, 80).replace(/\n/g, ' ')}…`);
         } else {
@@ -238,8 +230,11 @@ async function startSock() {
         console.error('message:', err.message || err);
         try {
           if (jid && sock) {
+            const en = /\b(hi|hello|hey|how|i'm|im |what|why|hungry|old)\b/i.test(body || '');
             await sock.sendMessage(jid, {
-              text: 'Je suis là 😊 Écrivez *bonjour* ou *menu*.',
+              text: en
+                ? "I'm right here 😊 Type *hi* or *menu*."
+                : 'Je suis là 😊 Écrivez *bonjour* ou *menu*.',
             });
           }
         } catch {
