@@ -28,6 +28,9 @@ const status = {
   qr: null,
   pairingCode: '',
   lastError: '',
+  lastIn: '',
+  lastOut: '',
+  lastSkip: '',
   store: mongoUri() ? 'mongo' : 'file',
 };
 
@@ -62,18 +65,53 @@ function jidUser(jid) {
   return String(jid || '').split('@')[0].split(':')[0];
 }
 
+function unwrapContent(message) {
+  let m = message || {};
+  for (let i = 0; i < 5; i += 1) {
+    const inner =
+      m.ephemeralMessage?.message ||
+      m.viewOnceMessage?.message ||
+      m.viewOnceMessageV2?.message ||
+      m.viewOnceMessageV2Extension?.message ||
+      m.documentWithCaptionMessage?.message ||
+      m.editedMessage?.message ||
+      m.groupMentionedMessage?.message;
+    if (!inner) break;
+    m = inner;
+  }
+  return m;
+}
+
 function messageText(msg) {
-  const m = msg.message || {};
+  const m = unwrapContent(msg.message);
   return (
     m.conversation ||
     m.extendedTextMessage?.text ||
     m.imageMessage?.caption ||
     m.videoMessage?.caption ||
     m.buttonsResponseMessage?.selectedDisplayText ||
+    m.buttonsResponseMessage?.selectedButtonId ||
     m.listResponseMessage?.title ||
     m.templateButtonReplyMessage?.selectedDisplayText ||
+    m.interactiveResponseMessage?.body?.text ||
     ''
   ).trim();
+}
+
+function messageAgeMs(msg) {
+  const ts = Number(msg.messageTimestamp || 0);
+  if (!ts) return 0;
+  const ms = ts > 1e12 ? ts : ts * 1000;
+  return Date.now() - ms;
+}
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(label || `timeout ${ms}ms`)), ms);
+    }),
+  ]);
 }
 
 async function startSock() {
@@ -90,6 +128,7 @@ async function startSock() {
         : ['Ubuntu', 'Chrome', '22.04.4'],
     markOnlineOnConnect: true,
     syncFullHistory: false,
+    getMessage: async () => ({ conversation: '' }),
   });
 
   sock.ev.on('creds.update', auth.saveCreds);
@@ -140,28 +179,48 @@ async function startSock() {
   });
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
+    if (type === 'prepend') return;
     for (const msg of messages) {
+      const jid = msg.key?.remoteJid || '';
       try {
-        if (!msg.message || msg.key.fromMe) continue;
-        const jid = msg.key.remoteJid;
+        if (msg.key?.fromMe) {
+          status.lastSkip = 'fromMe';
+          continue;
+        }
+        if (!msg.message) {
+          status.lastSkip = 'no-message';
+          continue;
+        }
         if (!jid || jid === 'status@broadcast') continue;
         if (IGNORE_GROUPS && jid.endsWith('@g.us')) continue;
         if (jid.endsWith('@newsletter') || jid.endsWith('@broadcast')) continue;
 
+        const age = messageAgeMs(msg);
+        if (age > 2 * 60 * 1000) {
+          status.lastSkip = `old ${Math.round(age / 1000)}s`;
+          continue;
+        }
+
         const body = messageText(msg);
-        if (!body) continue;
-        if (busy.has(jid)) continue;
+        if (!body) {
+          status.lastSkip = `empty ${type}`;
+          continue;
+        }
+        if (busy.has(jid)) {
+          status.lastSkip = `busy ${jidUser(jid)}`;
+          continue;
+        }
         busy.add(jid);
 
-        console.log(`[IN] ${jid} | ${body.slice(0, 120)}`);
+        status.lastIn = `${jidUser(jid)}: ${body.slice(0, 80)}`;
+        console.log(`[IN ${type}] ${jid} | ${body.slice(0, 120)}`);
         try {
           await sock.sendPresenceUpdate('composing', jid);
         } catch {
           /* ignore */
         }
 
-        const reply = await handleIncoming(jid, body);
+        const reply = await withTimeout(handleIncoming(jid, body), 20000, 'reply-timeout');
         if (reply) {
           const parts = String(reply).split(/\n\n+/).filter(Boolean);
           const bubbles = parts.length <= 4 ? parts : [reply];
@@ -169,12 +228,25 @@ async function startSock() {
             await sock.sendMessage(jid, { text: bubbles[i] });
             if (i < bubbles.length - 1) await sleep(350);
           }
+          status.lastOut = `${jidUser(jid)}: ${String(reply).slice(0, 80).replace(/\n/g, ' ')}`;
           console.log(`[OUT] ${jid} | ${reply.slice(0, 80).replace(/\n/g, ' ')}…`);
+        } else {
+          status.lastSkip = `no-reply ${type}`;
         }
       } catch (err) {
+        status.lastError = String(err.message || err).slice(0, 180);
         console.error('message:', err.message || err);
+        try {
+          if (jid && sock) {
+            await sock.sendMessage(jid, {
+              text: 'Je suis là 😊 Écrivez *bonjour* ou *menu*.',
+            });
+          }
+        } catch {
+          /* ignore */
+        }
       } finally {
-        if (msg.key?.remoteJid) busy.delete(msg.key.remoteJid);
+        if (jid) busy.delete(jid);
       }
     }
   });
@@ -193,11 +265,18 @@ async function requestPair(phone) {
 function pageHtml() {
   const linked = status.ready
     ? `<p class="ok">${NAME} is online as <b>+${status.number}</b>. Your PC can be off.</p>
-       <p class="hint">From another phone, write <b>hi</b> or <b>bonjour</b> to that number.</p>`
+       <p class="hint">Write <b>bonjour</b> from a <b>different</b> phone to +${status.number} — not from this phone.</p>
+       <p class="hint">Last inbound: ${status.lastIn ? status.lastIn : 'none yet — she has not seen a message'}</p>
+       <p class="hint">Last reply: ${status.lastOut || 'none'}${status.lastSkip ? ` · skip: ${status.lastSkip}` : ''}</p>
+       <form method="POST" action="/test-send${keyQuery()}">
+         <input name="phone" placeholder="2376XXXXXXXX tester" inputmode="numeric">
+         <button type="submit">Send test</button>
+       </form>`
     : status.qr
-      ? `<p>WhatsApp → Settings → <b>Linked devices</b> → Link a device</p>
-         <p><img src="/qr.png${keyQuery()}" width="260" height="260" alt="QR"></p>
-         <p class="hint">Or pair with a code (no QR):</p>
+      ? `<p>On the <b>same app as that number</b> (WhatsApp Business if it is a Business account):<br>Settings → <b>Linked devices</b> → Link a device</p>
+         <p><img src="/qr.png${keyQuery()}" width="320" height="320" alt="QR"></p>
+         <p class="hint">Do not scan from the camera or a QR app. Only the Linked-devices screen. Keep this page still ~1 min (QR must not refresh mid-scan).</p>
+         <p class="hint">Better on Business: pairing code — type the number with 237, no + or spaces:</p>
          <form method="POST" action="/pair${keyQuery()}">
            <input name="phone" placeholder="2376XXXXXXXX" inputmode="numeric" autocomplete="tel">
            <button type="submit">Get pairing code</button>
@@ -207,7 +286,7 @@ function pageHtml() {
   return `<!doctype html>
 <html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="${status.ready ? 30 : 8}">
+<meta http-equiv="refresh" content="${status.ready ? 30 : status.qr ? 60 : 8}">
 <title>${NAME} — AGC WhatsApp</title>
 <style>
   body{margin:0;font-family:system-ui,sans-serif;background:#0a1628;color:#f4f1ea;text-align:center}
@@ -256,6 +335,10 @@ const server = http.createServer(async (req, res) => {
         model: ai.defaultModel(),
         session: status.store,
         webhook_signed: false,
+        lastIn: status.lastIn || null,
+        lastOut: status.lastOut || null,
+        lastSkip: status.lastSkip || null,
+        lastError: status.lastError || null,
       })
     );
     return;
@@ -281,6 +364,37 @@ const server = http.createServer(async (req, res) => {
   if (!dashboardOk(req) && path !== '/health') {
     res.writeHead(401, { 'Content-Type': 'text/plain' });
     res.end('Add ?key=YOUR_DASHBOARD_KEY');
+    return;
+  }
+
+  if (path === '/test-send' && req.method === 'POST') {
+    const raw = await readBody(req);
+    let phone = '';
+    try {
+      if (raw.trim().startsWith('{')) phone = JSON.parse(raw).phone || '';
+      else phone = new URLSearchParams(raw).get('phone') || '';
+    } catch {
+      phone = '';
+    }
+    const digits = String(phone || '').replace(/\D/g, '');
+    try {
+      if (!sock || !status.ready) throw new Error('WhatsApp is not linked');
+      if (digits.length < 8) throw new Error('Enter the tester number with 237, e.g. 2376XXXXXXXX');
+      const jid = `${digits}@s.whatsapp.net`;
+      const text = `ASSIAA is linked on +${status.number}. Write *bonjour* here.`;
+      await sock.sendMessage(jid, { text });
+      status.lastOut = `${digits}: test`;
+      if ((req.headers.accept || '').includes('json')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, to: digits }));
+      } else {
+        res.writeHead(302, { Location: DASHBOARD_KEY ? `/?key=${encodeURIComponent(DASHBOARD_KEY)}` : '/' });
+        res.end();
+      }
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: err.message || String(err) }));
+    }
     return;
   }
 
