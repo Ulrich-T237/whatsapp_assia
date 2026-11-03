@@ -176,14 +176,14 @@ function localAnswer(lang, text) {
     return pick(
       en
         ? [
-            `Eat first 😊 I don’t cook — I cover people and cars at AGC. Come back for *motor* or *health*.`,
-            `Food isn’t a policy I sell. Grab a plate, then I’m here for the car or the health card.`,
-            `Rice, ndolé, whatever’s on the fire — enjoy it. After that we can talk *motor* or *health*.`,
+            `Eat first 😊 I don’t cook — I cover people, not plates.`,
+            `Grab a plate. I’ll still be here when you’re done.`,
+            `Rice, ndolé, whatever’s on the fire — enjoy it. I’m not going anywhere.`,
           ]
         : [
-            `Allez manger 😊 Je ne cuisine pas — je couvre les gens et les voitures chez AGC. Après, *auto* ou *santé*.`,
-            `La faim, ce n’est pas une police. Un plat d’abord. Ensuite je suis là pour l’*auto* ou la *santé*.`,
-            `Ndolé, riz, peu importe — savourez. Après on parle *auto* ou *santé*.`,
+            `Allez manger 😊 Je ne cuisine pas — je couvre les gens, pas les plats.`,
+            `Un plat d’abord. Je suis toujours là après.`,
+            `Ndolé, riz, peu importe — savourez. Je ne disparais pas.`,
           ],
       text
     );
@@ -892,16 +892,7 @@ function wrapOffTopic(from, lang, gag) {
   const n = bumpOffTopic(from);
   const en = lang === 'en';
   const replies = [{ type: 'text', text: gag }];
-  if (n === 1 || n === 2) {
-    replies.push({
-      type: 'buttons',
-      body: en ? 'Whenever you want AGC:' : 'Quand vous voulez AGC :',
-      buttons: [
-        { id: 'menu', title: 'Menu' },
-        { id: 'sante', title: en ? 'Health' : 'Santé' },
-      ],
-    });
-  } else if (n % 3 === 0) {
+  if (n % 4 === 0) {
     replies.push({
       type: 'text',
       text: en
@@ -921,22 +912,22 @@ function chitchatReply(from, lang, text) {
   const en = lang === 'en';
   const t = norm(text);
   let gag;
-  if (isNonsense(text)) {
+  if (isNonsense(text) || /^[?!.]+$/.test(String(text || '').trim()) || String(text || '').trim().length <= 2) {
     gag = en
-      ? `I got the vibe, not the sentence 😄 Try *menu*, or tell me auto, health, a city…`
-      : `J’ai le vibe, pas la phrase 😄 Tapez *menu*, ou dites auto, santé, une ville…`;
+      ? `I got the vibe, not the sentence 😄 Say it in a few words — I’m here.`
+      : `J’ai le vibe, pas la phrase 😄 Dites-le en quelques mots — je suis là.`;
   } else if (/faim|hungry|mange|food|soif|thirsty/.test(t)) {
     gag = en
-      ? `Ha — I don’t plate ndolé, I cover people 😅 Eat first. Then I’m here for *health* or *motor*.`
-      : `Ha — je ne fais pas le ndolé, je couvre les gens 😅 Allez manger. Après je m’occupe de votre *santé* ou votre *auto*.`;
+      ? `Ha — I don’t plate ndolé 😅 Eat first. I’ll still be right here.`
+      : `Ha — je ne fais pas le ndolé 😅 Allez manger. Je reste là.`;
   } else if (/foot|match|football/.test(t)) {
     gag = en
       ? `I don’t have the score ⚽ I can cover the car that takes you to the stadium though.`
       : `Le score, je n’ai pas ⚽ L’auto qui vous emmène au stade, oui.`;
   } else if (/how old|quel age|tu as quel age|age are you/.test(t)) {
     gag = en
-      ? `Old enough to know AGC since *2002* 😄 I cover cars and people — not my birthday. *Menu*?`
-      : `Assez pour connaître AGC depuis *2002* 😄 Je couvre les voitures et les gens — pas mon anniversaire. *Menu* ?`;
+      ? `Old enough to know AGC since *2002* 😄 I don’t do birthday cake.`
+      : `Assez pour connaître AGC depuis *2002* 😄 Pas de gâteau d’anniversaire ici.`;
   } else if (/color|couleur|moon|lune/.test(t)) {
     gag = en
       ? `The moon can look silver — I cover cars, not astronomy 🌙 Tap *menu* when you want AGC.`
@@ -1102,6 +1093,15 @@ async function processMessage({ from, text, payload }) {
   }
 
   if (!trimmed) return welcomeOrMenu(from);
+  if (isAck(trimmed)) return ackReply(langOf(from));
+  if (
+    isOffTopic(trimmed) ||
+    isNonsense(trimmed) ||
+    /^[?!.]+$/.test(trimmed) ||
+    (trimmed.length <= 3 && !/^[0-9]+$/.test(trimmed))
+  ) {
+    return chitchatReply(from, langOf(from), trimmed);
+  }
   return freeTalk(from, trimmed, {});
 }
 
