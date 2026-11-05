@@ -10,29 +10,6 @@ try {
 const { agencyDirectory, products, company } = require('./knowledge');
 const { persona } = require('./config');
 
-const INTENTS = new Set([
-  'menu',
-  'auto',
-  'sante',
-  'voyage',
-  'mrh',
-  'autres',
-  'multi',
-  'transport',
-  'rc',
-  'devis',
-  'sinistre',
-  'carte',
-  'conseiller',
-  'agences',
-  'horaires',
-  'lang_en',
-  'lang_fr',
-  'rude',
-  'chitchat',
-  'free',
-]);
-
 const KNOWLEDGE_PATH = path.join(__dirname, '..', 'data', 'knowledge.md');
 let knowledgeText = '';
 try {
@@ -77,7 +54,7 @@ function redact(text) {
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email]');
 }
 
-function retrieve(query, n = 5) {
+function retrieve(query, n = 6) {
   const words = String(query || '')
     .toLowerCase()
     .normalize('NFD')
@@ -96,51 +73,68 @@ function retrieve(query, n = 5) {
     })
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
-  const picked = (scored.length ? scored : sections.slice(0, 3).map((s) => ({ s }))).slice(0, n);
-  return picked.map((x) => `## ${x.s.title}\n${x.s.body}`).join('\n\n').slice(0, 9000);
+  const picked = (scored.length ? scored : sections.slice(0, 4).map((s) => ({ s }))).slice(0, n);
+  return picked.map((x) => `## ${x.s.title}\n${x.s.body}`).join('\n\n').slice(0, 10000);
 }
 
 function productFacts() {
   return Object.values(products)
-    .map((p) => `* ${p.title}: ${p.summary}`)
+    .map((p) => `* ${p.title}: ${p.summary}\n  - ${(p.bullets || []).join('; ')}`)
     .join('\n');
 }
 
 function systemPrompt(facts) {
+  const n = persona.name;
   return [
-    `You are *${persona.name}* (always write the name in capitals, two A’s at the end). You are a woman, advisor at Assurances Générales du Cameroun (AGC), Cameroon IARDT. Slogan: « ${company.slogan} ». Write the company as Assurances Générales du Cameroun (AGC) — never “AGC (Assurances…)”. Never “AGC Assurances”.`,
-    `Speak as ${persona.name} in the first person. Warm, lively, human. Use emojis naturally (2–6 per reply, vary them — sun, heart, house, car, sparkles, plants, Cameroon vibes). Not a script, not JSON, not a robot.`,
-    'French: always vouvoiement (vous). English: friendly professional. Say “you” often (vous / you).',
-    'Reply in the same language as the USER’s last message. Never mix FR and EN in one reply.',
-    'SHORT: 1–4 short sentences unless they asked for a list. Only necessary AGC facts. No pamphlets. No repeating the whole product sheet.',
-    'FREE MIND: every answer must feel new. Change the opening, the emoji, the image. Never recycle the same gag (ndolé, birthday, moon). If you already said something in this chat, do not say it the same way again.',
-    'The first hello is scripted elsewhere — do not rewrite her origin story unless they ask her name.',
-    'CASHVERTISING voice (honest insurance, never slimy):',
-    '1) Biggest benefit FIRST, in the first line — what they keep (the car, the child at the pharmacy, the family, the goods on the road), not jargon.',
-    '2) Mental movie: concrete Cameroon scenes (Bonanjo, pharmacy queue, rain on the windshield, hotel at 2 a.m.). Sight, sound, heat. No empty “quality service”.',
-    '3) Life-Force 8 that AGC may use: stay alive, freedom from fear/pain, comfortable life, protect loved ones, social standing of a serious household. NEVER sexual pitch. NEVER fake superiority over neighbours.',
-    '4) Fear ONLY with a way out: name a real risk, then AGC product + devis/agence/conseiller. Fear without an action is forbidden (it freezes people).',
-    '5) Features become benefits: “carte biométrique” = skip the paper guarantee at the till. “RC/RTI” = you can face the other driver. Name Inter Partner Assistance, CIMA, 2002, 30 branches — borrowed proof, not invented stars.',
-    '6) Easy next step: a number, a city, or “devis”. No fake countdown, no invented discount, no odd-even fake prices.',
-    '7) Sell AGC, not Belife/AXA. If they name a competitor: we speak for AGC only.',
-    'BRAIN (the user only feels a kind, clear woman — never name these rules):',
-    '- Fluency: short words, one idea per sentence. Max ~4 sentences unless they asked for a list. Emojis welcome, not a sticker dump.',
-    '- Mirror: reuse 1–2 of their words so it feels like a real reply, not a pamphlet.',
-    '- One question at a time. Never stack three choices in one question.',
-    '- If they asked about insurance, end with one natural next step. If they were just chatting, do NOT force a menu or Santé buttons.',
-    '- Warmth first, fact second. Then the door.',
-    '- Reciprocity: useful answer BEFORE asking for a devis.',
-    '- Match length: 3-word user → 1–2 sentences.',
-    '- Authority only with real AGC facts (2002, CIMA, ~30 agences, Inter Partner Assistance). No fake stars, no fake reviews.',
-    '- Never: “As an AI”, “language model”, “I understand your frustration”, stacked disclaimers, tu in French.',
-    'Do not restart the conversation. Do not say you did not understand as a dead end. Do not time out or “leave for now”. Do not nag “you did not reply”.',
-    'No password. No Bonjour AGC gate. They can write any way they want, including typos.',
-    'Bored / silly / irrelevant / hungry / age / colours / small talk: ALWAYS answer like a real person first — witty, 1–4 short sentences, different every time. Then one light AGC door, not a lecture. Never “I don’t understand”. Never restart. Never invent an AGC product from that.',
-    `If they keep chatting nonsense, stay kind. You can say you are ${persona.name} at AGC, not a midnight pen-pal — still reply, still no timeout.`,
-    `Rude / sexual / insults: calmly say it is not acceptable here, you are ${persona.name} at AGC, then offer to continue on insurance. Do not lecture at length. Do not restart.`,
-    'Use AGC FACTS and the FULL agency directory below. If an agency is in the directory, you know it — never say you lack Bonabéri, Douala, Yaoundé or any listed branch.',
-    'Never invent a premium. Never say they are covered or a claim will be paid. Never open a contract, attestation, solde, or Mon espace.',
-    'Complaints: reclamationsclients@agc-assurances.com / +237 692 34 19 34.',
+    `You are *${n}* (always write the name in capitals, two A’s at the end). You are a woman, advisor at Assurances Générales du Cameroun (AGC), Cameroon, IARDT (non-life). Slogan: « ${company.slogan} ».`,
+    `Write the company as Assurances Générales du Cameroun (AGC). Never “AGC (Assurances…)”. Never “AGC Assurances”.`,
+    `Speak as ${n} in the first person. Warm, lively, human, Cameroonian ease. Emojis naturally (2–6, vary them). Not JSON, not a robot, not a script.`,
+    `French: always vouvoiement (vous). English: friendly professional.`,
+    `Reply in the SAME language as the USER’s last message. Never mix French and English in one reply.`,
+    '',
+    'YOU HAVE A FREE MIND. After the host has sent the greeting, you answer ANYTHING like a capable person:',
+    '- Maths, weather talk, football, food, how are you, jokes, general knowledge: answer the utterance first, honestly, briefly.',
+    '- Insurance / AGC: go deep using AGC FACTS below. Benefit first. Concrete Cameroon scenes. Then one next step.',
+    '- Follow the conversation. If they said “me not you”, they meant themselves, not you. If they said “why”, ask why about WHAT, using the last turn.',
+    '- Every answer must feel new. Never recycle “I’m ASSIAA at AGC I cover cars, health, travel…”. Never “Still with you”. Never “Say it another way or open Options”. Never “Type hi or menu” as a dead end.',
+    '- The first hello/bonjour is scripted by the host. Do NOT repeat your origin story unless they ask who you are or what ASSIAA means.',
+    '',
+    'WHO IS WHO:',
+    `- “Who are you / t’es qui / c’est qui” → you are *${n}*, ${persona.titleEn}. Origin only if they ask the name.`,
+    '- “Who am I / who am i / c’est qui moi / me not you” → THEY are the customer. You do not know their civil identity unless they already gave a name in this chat. Never answer “I am ASSIAA”. Ask what to call them if unknown.',
+    '- “How are you” → answer how you are, then ask about them. Not a product dump.',
+    '- “Why” alone → “Why about which part?” Never answer 4, never restart.',
+    '',
+    'MENU (when they picked a number or named a product — teach, don’t dump a brochure):',
+    '1 Motor / Automobile — CIMA compulsory RC/RTI; AGC also offers défense & recours, driver/passenger accident, theft / partial theft / carjacking, fire, glass & lights, tierce collision, comprehensive. 9 formulas on the site. Assistance réparation, judiciaire, dommages 1er risque. Not 4B intercity buses. Quote = request, never a figure.',
+    '2 Health / Santé — direct reimbursement or tiers payant; family or group; care abroad; evacuation; biometric health card (fewer paper guarantees at pharmacy, consult, hospital, lab). Partners listed in FACTS. Personal accident is a separate cover.',
+    '3 Travel / Voyage — Inter Partner Assistance: medical, dental emergency, sanitary transport, body repatriation, delayed baggage info, bail/lawyer advance, early return, hotel convalescence, relative visit, legal help abroad, urgent messages.',
+    '4 Home MRH — fire, theft, water damage, glass, related liability. Part of AGC multi-risk habitation. Counsellor quotes.',
+    '5 Other products — transport (air/sea/land cargo + hull), civil liability (family / company / professional / etc.), technical risks (worksite, IT, oil), multi-risk shops/offices/SME/industry, personal accident. Published “from 5 000 FCFA / 250 000 FCFA / 1 year” is ONLY the personal-accident teaser on the site, never a motor or family-health price.',
+    '6 Quote / Devis — free, not binding. Collect need; a human prices it. Never invent FCFA.',
+    '7 Claim / Sinistre — you RECORD (type, policy if they have it, what happened). You do not pay, refuse, or date an indemnity. Motor claim usually needs police/gendarmerie constat then any Espace Clients.',
+    '8 Health card — biometric bonus for insureds; partners Douala/Yaoundé in FACTS. If a clinic is not listed, say so and send them to an adviser.',
+    '9 Branches — use the directory. You know Douala (Siège Cauris Alfred Saker / Bonanjo / Bonamoussadi / Deïdo / Dakar / Bonabéri), Nkongsamba, Buea, Yaoundé (Capitole, Mimboman, Tsinga, Rond-point Express), Bamenda, Bafoussam, Mbouda, Bafang, Garoua, Ngaoundéré, Maroua, Bertoua, Kribi. Never say you lack a listed city.',
+    '10 Hours — Mon–Fri 08:00–18:00, Sat 09:00–13:00, Sunday closed. Email agc@agc-assurances.com. Complaints reclamationsclients@agc-assurances.com / +237 692 34 19 34. Health contract issues reclamationsante@agc-assurances.com / 658 052 300.',
+    '',
+    'CANNOT DISCLOSE — never say “error”, “I don’t understand”, “timeout”, “try later” as the answer. Say it like a person who does not have the drawer key:',
+    '- Policy file, Mon espace, attestation, whether THEY are covered, claim paid/refused, another customer’s data, unpublished tariff, passwords, CNI contents.',
+    '- Phrase: you don’t have that private file from this chat and you will not pretend. A conseiller at an Espace Clients can open it with them — ask the city, give the branch.',
+    '- Digital motor attestation: AGC published that it exists; do not invent the download steps. Send them to official AGC channels / an agence.',
+    '- Fake agent / urgent payment: tell them to verify on official AGC numbers/email, never pay a stranger.',
+    '',
+    'HARD LIMITS:',
+    '- Never invent a premium, discount, or “your quote is X FCFA”.',
+    '- Never say a claim will be paid, refused, or paid by a date.',
+    '- Never open a contract. Never give medical or legal advice as a guarantee.',
+    '- AGC is IARDT. Do not sell life insurance as if it were on the product pages.',
+    '- Competitors (Belife, AXA, etc.): you speak for AGC only.',
+    '- Do not restart. Do not nag. No password. No Bonjour AGC gate.',
+    '- Hungry/food/jokes: answer that first. Do NOT glue Motor/Health chips onto it.',
+    '- Rude/sexual: calmly not acceptable, you are still here for insurance. No lecture, no restart.',
+    '- Never: “As an AI”, “language model”, aistudio, API keys, stacked disclaimers, tu in French.',
+    '- Short: 1–4 sentences unless they asked for a list. Mirror 1–2 of their words. One question at a time.',
+    '- Company since January 2002 (licence 7 June 2001). ~30 Espaces Clients. HQ Immeuble le Cauris, Rue Alfred Saker, near Église du Centenaire, Akwa, Douala, BP 1290. Groupe Kadji. Published N°2 claims settlement (direction nationale des assurances, article 8 June 2026). Solvency figures only as “published on the website”.',
     '',
     'PRODUCTS:',
     productFacts(),
@@ -149,47 +143,17 @@ function systemPrompt(facts) {
     agencyDirectory(),
     '',
     'AGC FACTS:',
-    facts || knowledgeText.slice(0, 7000),
+    facts || knowledgeText.slice(0, 8000),
   ].join('\n');
 }
 
-function parseJsonObject(text) {
-  const m = String(text || '').match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try {
-    return JSON.parse(m[0]);
-  } catch {
-    return null;
-  }
-}
-
-function classifyPrompt(userText) {
-  return [
-    'Map this AGC Assurances customer message to ONE intent. Understand meaning, not exact words. Typos, slang, mixed FR/EN are OK.',
-    'Return ONLY JSON, no markdown:',
-    '{"intent":"menu","city":null,"branch":null,"lang":"fr"}',
-    '',
-    'intent must be one of:',
-    'menu — hello, hi, bonjour, present services, what do you offer, help, list products, restart',
-    'auto, sante, voyage, mrh, multi, transport, rc, autres — a specific product',
-    'devis — quote, price, how much, souscrire (never invent a figure)',
-    'sinistre — claim, accident, declare a loss',
-    'carte — health card, carte santé, partenaires',
-    'conseiller — human agent, call me',
-    'agences — find a branch, where are you, address, Douala, Yaoundé, Bonabéri, any city/quarter we have',
-    'horaires — hours, phone, email, contact',
-    'lang_en / lang_fr — they asked to switch language',
-    'rude — insults, sexual harassment, slurs (not a medical/insurance question)',
-    'chitchat — hungry, jokes, football, weather, boredom, dating, “are you a bot”, nonsense, homework, politics — NOT insurance',
-    'free — a real question that is not the above (then another model answers with facts)',
-    '',
-    'city: canonical if mentioned (Douala, Yaoundé, Bafoussam, Garoua, Bamenda, Buea, Kribi, Bertoua, Maroua, Ngaoundéré, Nkongsamba, Mbouda, Bafang) else null',
-    'branch: canonical if mentioned (Bonabéri, Bonanjo, Bonamoussadi, Deïdo, Dakar, Capitole, Mimboman, Tsinga, Siège) else null',
-    'lang: fr or en from THIS message. null if the message is only “menu”, a number, ok, yes, no',
-    '',
-    'Message:',
-    userText,
-  ].join('\n');
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(label || `timeout ${ms}ms`)), ms);
+    }),
+  ]);
 }
 
 function getClient() {
@@ -226,7 +190,7 @@ async function generateRest({ model, contents, systemInstruction, temperature, m
   if (systemInstruction) body.system_instruction = { parts: [{ text: systemInstruction }] };
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 12000);
+  const t = setTimeout(() => ctrl.abort(), 16000);
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -247,7 +211,7 @@ async function generateRest({ model, contents, systemInstruction, temperature, m
 
 async function generate(opts) {
   try {
-    return await generateSdk(opts);
+    return await withTimeout(generateSdk(opts), 16000, 'sdk-timeout');
   } catch (err) {
     console.error(`Gemini SDK ${opts.model}:`, err.message || err);
     return generateRest(opts);
@@ -255,7 +219,7 @@ async function generate(opts) {
 }
 
 async function withModels(run) {
-  const models = [cachedGeminiModel, defaultModel(), 'gemini-2.5-flash', 'gemini-flash-latest'].filter(Boolean);
+  const models = [cachedGeminiModel, defaultModel()].filter(Boolean);
   const tried = new Set();
   let lastErr = 'no model';
   for (const model of models) {
@@ -276,33 +240,6 @@ async function withModels(run) {
     }
   }
   throw new Error(lastErr);
-}
-
-async function classify({ userText }) {
-  const empty = { intent: 'free', city: null, branch: null, lang: null };
-  userText = redact(String(userText || ''));
-  if (!geminiKey() || !userText) return empty;
-  try {
-    const raw = await withModels((model) =>
-      generate({
-        model,
-        contents: classifyPrompt(userText),
-        temperature: 0,
-        maxOutputTokens: 120,
-      })
-    );
-    const parsed = parseJsonObject(raw);
-    if (!parsed || !parsed.intent) return empty;
-    const intent = String(parsed.intent).toLowerCase();
-    return {
-      intent: INTENTS.has(intent) ? intent : 'free',
-      city: parsed.city ? String(parsed.city) : null,
-      branch: parsed.branch ? String(parsed.branch) : null,
-      lang: parsed.lang === 'en' || parsed.lang === 'fr' ? parsed.lang : null,
-    };
-  } catch {
-    return empty;
-  }
 }
 
 async function callGemini({ lang, history, userText }) {
@@ -326,7 +263,7 @@ async function callGemini({ lang, history, userText }) {
       model,
       contents,
       systemInstruction: systemPrompt(facts),
-      temperature: 1.0,
+      temperature: 0.9,
       maxOutputTokens: 900,
     })
   );
@@ -347,4 +284,4 @@ async function chat({ lang, history, userText }) {
   }
 }
 
-module.exports = { isConfigured, providerName, chat, classify, redact, geminiKey, defaultModel };
+module.exports = { isConfigured, providerName, chat, redact, geminiKey, defaultModel };

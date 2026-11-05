@@ -1,7 +1,7 @@
 const SITE = 'https://agc-assurances.com';
 
 const company = {
-  name: 'AGC Assurances',
+  name: 'Assurances Générales du Cameroun (AGC)',
   slogan: 'Le gage de votre sécurité',
   legal: 'Assurances Générales du Cameroun S.A. — IARDT',
   since: 2002,
@@ -157,14 +157,18 @@ const healthPartners = {
     'Clinique La Source',
     'Louis Pasteur Labo',
     'Clinique Bordeaux Douala',
+    'Laboratoire Biolor Labo',
     'Polyclinique Bonanjo',
     'Hôpital de district Cité des Palmiers',
-    'Hôpital catholique Saint Paul',
-    'Ad Lucem Bali, Bonabéri, Bonamoussadi',
-    'Pharmacie de la Côte, St James, du Centre…',
+    'Polyclinique Annexe Muna',
+    'Hôpital catholique Saint Paul de Douala',
+    'Pharmacie de la Côte',
+    'Ad Lucem Bali / Bonabéri / Bonamoussadi',
+    'Pharmacie St James, du Centre, Cité des Palmiers, Bonamoussadi, Elysée Nono, Bonambappe',
+    'Clinique La Regenerescence, Koumassi, du Berceau',
   ],
   yaounde: [
-    'Exact Centre d’imagerie et d’analyses',
+    'Exact Centre d’imagerie et d’analyses biologiques',
     'Centre médico-chirurgical Reaven',
     'Les Promoteurs de la Bonne Santé',
     'Ad Lucem Obobogo',

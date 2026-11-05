@@ -3,7 +3,7 @@ const productsEn = require('./products-en');
 const sessions = require('./sessions');
 const leads = require('./leads');
 const ai = require('./ai');
-const { disclaimer, aiNote, introText, persona, productHooks } = require('./config');
+const { introText, persona } = require('./config');
 
 const GREET = /^(bonjour|bonsoir|salut|hello|hi|hey|bjr|slt|menu|accueil|start|demarrer|démarrer)$/i;
 const NAME_STOP = new Set([
@@ -99,7 +99,7 @@ function langOf(from) {
 
 const NEUTRAL_MSG = /^(menu|accueil|start|ok|oui|non|yes|no|[1-9]|10)$/i;
 const EN_TOK = new Set(
-  'i im am is are was were you your my me we they the this that what whats who where when why how which can could would should do does did dont didnt cant wont please thanks thank hello hi hey hungry bored food help need want old color colour moon health quote claim branch hours english motor car travel okay yeah not'.split(
+  'i im am is are was were you your my me we they the this that what whats who where when why how which can could would should do does did dont didnt cant wont please thanks thank hello hi hey hungry bored food help need want old color colour moon health quote claim branch hours english motor car travel okay yeah not said didnt didn'.split(
     ' '
   )
 );
@@ -114,15 +114,13 @@ function guessLang(text) {
   if (!raw || NEUTRAL_MSG.test(raw)) return null;
   const n = norm(raw);
   if (
-    /\b(i m|i am|i ll|i ve|i d|don t|doesn t|can t|won t|what s|it s|how old|are you|am i|what color|i m hungry|i m bored|i need)\b/.test(
+    /\b(i m|i am|i ll|i ve|i d|don t|doesn t|can t|won t|what s|it s|how old|are you|am i|what color|i m hungry|i m bored|i need|who am i|not you)\b/.test(
       n
     )
   ) {
     return 'en';
   }
-  if (
-    /\b(j ai|jai|faim|soif|t a quelle|ta quelle|quelle age|quel age|tu as quel|ca va|c est|j ai faim)\b/.test(n)
-  ) {
+  if (/\b(j ai|jai|faim|soif|t a quelle|ta quelle|quelle age|quel age|tu as quel|ca va|c est|j ai faim|qui suis je)\b/.test(n)) {
     return 'fr';
   }
   const toks = n.split(/\s+/).filter(Boolean);
@@ -137,14 +135,10 @@ function guessLang(text) {
   return null;
 }
 
-function applyMessageLang(session, text, classifiedLang) {
+function applyMessageLang(session, text) {
   if (NEUTRAL_MSG.test(String(text || '').trim())) return;
   const guessed = guessLang(text);
-  if (guessed) {
-    session.lang = guessed;
-    return;
-  }
-  if (classifiedLang === 'en' || classifiedLang === 'fr') session.lang = classifiedLang;
+  if (guessed) session.lang = guessed;
 }
 
 function pick(arr, seed) {
@@ -154,125 +148,18 @@ function pick(arr, seed) {
   return arr[Math.abs(h) % arr.length];
 }
 
-function localAnswer(lang, text) {
-  const n = persona.name;
-  const en = lang === 'en';
-  const t = norm(text);
-  if (isNonsense(text)) {
-    return pick(
-      en
-        ? [
-            `I got the keys, not the sentence 😄 I’m *${n}* at AGC. A city, *motor*, *health*, or *menu*.`,
-            `That one’s a jumble. Still here at AGC. Try a city or *menu*.`,
-          ]
-        : [
-            `J’ai les touches, pas la phrase 😄 Je suis *${n}* chez AGC. Une ville, *auto*, *santé*, ou *menu*.`,
-            `C’est du charabia. Je suis toujours là. Une ville ou *menu*.`,
-          ],
-      text
-    );
-  }
-  if (/faim|hungry|mange|food|soif|thirsty|rice|riz|ndole|eat/.test(t)) {
-    return pick(
-      en
-        ? [
-            `Eat first 😊 I don’t cook — I cover people and cars at AGC. Come back for *motor* or *health*.`,
-            `Food isn’t a policy I sell. Grab a plate, then I’m here for the car or the health card.`,
-            `Rice, ndolé, whatever’s on the fire — enjoy it. After that we can talk *motor* or *health*.`,
-          ]
-        : [
-            `Allez manger 😊 Je ne cuisine pas — je couvre les gens et les voitures chez AGC. Après, *auto* ou *santé*.`,
-            `La faim, ce n’est pas une police. Un plat d’abord. Ensuite je suis là pour l’*auto* ou la *santé*.`,
-            `Ndolé, riz, peu importe — savourez. Après on parle *auto* ou *santé*.`,
-          ],
-      text
-    );
-  }
-  if (/how old|quel age|quelle age|tu as quel|t a quelle|age are you|c a quelle age/.test(t)) {
-    return pick(
-      en
-        ? [
-            `Me? Old enough. AGC has been here since *2002* 😄 I cover cars and people — not birthday cake.`,
-            `I don’t do birthdays. AGC opened in *2002*. Your car and your health, I do.`,
-          ]
-        : [
-            `Moi ? Assez pour connaître AGC depuis *2002* 😄 Je couvre les voitures et les gens, pas les bougies.`,
-            `Pas d’anniversaire ici. AGC est là depuis *2002*. Votre auto et votre santé, oui.`,
-          ],
-      text
-    );
-  }
-  if (/bored|ennui|je m ennuie/.test(t)) {
-    return pick(
-      en
-        ? [
-            `Boredom I can’t insure 😌 People, cars, trips — yes. A city or *menu* when you want AGC.`,
-            `I don’t sell time-killers. I do sell AGC cover. *Motor*, *health*, or a branch?`,
-          ]
-        : [
-            `L’ennui, je ne l’assure pas 😌 Les gens, les voitures, les voyages — oui. Une ville ou *menu*.`,
-            `Je ne vends pas le temps. Je vends la couverture AGC. *Auto*, *santé*, ou une agence ?`,
-          ],
-      text
-    );
-  }
-  if (/where is agc|ou est agc|head office|siege|headquarters/.test(t)) {
-    return hqText(en);
-  }
-  return pick(
-    en
-      ? [
-          `I’m *${n}* at AGC 😊 I cover cars, health, travel, branches. Tell me what you need in your own words.`,
-          `Still with you — *${n}*, AGC Assurances. Motor, health, a city, or just say it plainly.`,
-        ]
-      : [
-          `Je suis *${n}* chez AGC 😊 Auto, santé, voyage, agences. Dites-le avec vos mots.`,
-          `Toujours là — *${n}*, AGC Assurances. Auto, santé, une ville, ou une phrase simple.`,
-        ],
-    text
-  );
+function remember(session, userText, assistantText) {
+  session.history = [
+    ...(session.history || []),
+    { role: 'user', content: String(userText || '').slice(0, 500) },
+    { role: 'assistant', content: String(assistantText || '').slice(0, 2000) },
+  ].slice(-16);
 }
 
 function hqText(en) {
   return en
-    ? `*AGC Assurances* is in Douala:\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nMon–Fri 8:00–18:00 · Sat 9:00–13:00 · Sunday closed.\n\nAnother city? Type it (Douala, Yaoundé, Bafoussam…).`
-    : `*AGC Assurances*, Douala :\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nLun–Ven 8h–18h · samedi 9h–13h · dimanche fermé.\n\nUne autre ville ? Écrivez-la (Douala, Yaoundé, Bafoussam…).`;
-}
-
-function hqReply(lang) {
-  return { type: 'text', text: hqText(lang === 'en') };
-}
-
-async function freeTalk(from, userText, extra) {
-  const session = sessions.get(from);
-  const spoken = langOf(from);
-  const topic = extra && extra.topic;
-  let asked = String(userText || '').trim();
-  if (topic) {
-    asked += `\n[Context: AGC topic “${topic}”. Answer from AGC facts. Vary the wording. Never invent a premium.]`;
-  }
-  if (ai.isConfigured()) {
-    const guide = await ai.chat({ lang: spoken, history: session.history || [], userText: asked });
-    if (guide.ok && guide.text) {
-      session.history = [
-        ...(session.history || []),
-        { role: 'user', content: String(userText || '').slice(0, 500) },
-        { role: 'assistant', content: String(guide.text).slice(0, 2000) },
-      ].slice(-16);
-      return [{ type: 'text', text: guide.text }];
-    }
-  }
-  if (topic && products[topic]) return productReply(topic, spoken);
-  if (topic === 'horaires') return [hoursReply(spoken)];
-  if (topic === 'carte') return [carteSante(spoken)];
-  if (topic === 'autres') return otherProducts(spoken);
-  const reply = localAnswer(spoken, userText);
-  session.history = [
-    ...(session.history || []),
-    { role: 'user', content: String(userText || '').slice(0, 500) },
-    { role: 'assistant', content: String(reply).slice(0, 2000) },
-  ].slice(-16);
-  return [{ type: 'text', text: reply }];
+    ? `Our headquarters is in Douala:\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nMon–Fri 8:00–18:00 · Sat 9:00–13:00 · Sunday closed.\n\nAnother city? Type it (Douala, Yaoundé, Bafoussam…).`
+    : `Notre siège est à Douala :\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nLun–Ven 8h–18h · samedi 9h–13h · dimanche fermé.\n\nUne autre ville ? Écrivez-la (Douala, Yaoundé, Bafoussam…).`;
 }
 
 function locProduct(id, lang) {
@@ -282,26 +169,13 @@ function locProduct(id, lang) {
   return p;
 }
 
-function markGreeted(from) {
-  const s = sessions.get(from);
-  const first = !s.greeted;
-  s.greeted = true;
-  return first;
-}
-
-function welcomeReply(from, lang, full) {
+function welcomeReply(from, lang) {
   sessions.get(from).greeted = true;
   const en = lang === 'en';
   const menu = mainMenu(lang);
-  menu.body = en
-    ? 'Pick below — or just type it 👇'
-    : 'Choisissez ci-dessous — ou écrivez-le 👇';
+  menu.body = en ? 'Pick a number — or just type it 👇' : 'Choisissez un numéro — ou écrivez-le 👇';
   menu.footer = en ? 'Français / English — type it anytime' : 'Français / English — tapez-le quand vous voulez';
-  return [{ type: 'text', text: introText(lang, full !== false) }, menu];
-}
-
-function welcomeOrMenu(from) {
-  return welcomeReply(from, langOf(from), true);
+  return [{ type: 'text', text: introText(lang, true) }, menu];
 }
 
 function mainMenu(lang) {
@@ -311,8 +185,8 @@ function mainMenu(lang) {
     header: en ? 'AGC menu' : 'Menu AGC',
     body: pick(
       en
-        ? ['What should we look at?', 'Tap what you need — or type it.', 'Motor, health, a branch… your call.']
-        : ['On regarde quoi ?', 'Touchez ce qu’il vous faut — ou écrivez-le.', 'Auto, santé, une agence… à vous.'],
+        ? ['What should we look at?', 'Pick a number — or type it.', 'Motor, health, a branch… your call.']
+        : ['On regarde quoi ?', 'Choisissez un numéro — ou écrivez-le.', 'Auto, santé, une agence… à vous.'],
       `${lang}-menu`
     ),
     button: en ? 'Open menu' : 'Voir le menu',
@@ -351,12 +225,14 @@ function productReply(id, lang) {
   if (!p) return null;
   const bullets = p.bullets.map((b) => `• ${b}`).join('\n');
   const en = lang === 'en';
-  const hook = (productHooks[id] && productHooks[id][en ? 'en' : 'fr']) || p.summary;
   return [
-    { type: 'text', text: `*${p.title}*\n\n${hook}\n\n${bullets}\n\n${en ? 'More' : 'Plus de détails'} : ${p.url}` },
+    {
+      type: 'text',
+      text: `*${p.title}*\n\n${p.summary}\n\n${bullets}\n\n${en ? 'I don’t invent a premium. A counsellor prices it after a request.' : 'Je n’invente pas de prime. Un conseiller tarife après une demande.'}\n\n${en ? 'More' : 'Plus de détails'} : ${p.url}`,
+    },
     {
       type: 'buttons',
-      body: en ? 'Would you like a quote for this product?' : 'Souhaitez-vous un devis pour ce produit ?',
+      body: en ? 'Would you like a quote request for this?' : 'Souhaitez-vous une demande de devis pour ce produit ?',
       buttons: [
         { id: `devis_${id}`, title: en ? 'Yes, a quote' : 'Oui, un devis' },
         { id: 'menu', title: 'Menu' },
@@ -371,8 +247,8 @@ function otherProducts(lang) {
     {
       type: 'text',
       text: en
-        ? `*Other AGC products* ✨\n\n🚚 *Transport* — goods by road, sea or air\n⚖️ *Civil liability* — family or company\n🛠️ *Technical risks* — machines, IT, breakdown\n🏢 *Multi-risk* — shops, offices, SMEs\n🩺 *Personal accident*\n\nHome cover is *MRH* — type *MRH*. I keep it short; a counsellor quotes, I don’t.`
-        : `*Autres produits AGC* ✨\n\n🚚 *Transport* — marchandises route, mer, air\n⚖️ *Responsabilité civile* — famille ou entreprise\n🛠️ *Risques techniques* — machines, informatique\n🏢 *Multirisques* — commerces, bureaux, PME\n🩺 *Individuelle accident*\n\nPour la maison, c’est la *MRH* — tapez *MRH*. Je reste brève ; le tarif, c’est un conseiller.`,
+        ? `*Other AGC products* ✨\n\n🚚 *Transport* — goods by road, sea or air\n⚖️ *Civil liability* — family or company\n🛠️ *Technical risks* — worksite, IT, oil equipment\n🏢 *Multi-risk* — shops, offices, SMEs, industry\n🩺 *Personal accident*\n\nHome cover is *MRH*. I keep it short; a counsellor quotes, I don’t.`
+        : `*Autres produits AGC* ✨\n\n🚚 *Transport* — marchandises route, mer, air\n⚖️ *Responsabilité civile* — famille ou entreprise\n🛠️ *Risques techniques* — chantier, informatique, pétrole\n🏢 *Multirisques* — commerces, bureaux, PME, industrie\n🩺 *Individuelle accident*\n\nPour la maison, c’est la *MRH*. Je reste brève ; le tarif, c’est un conseiller.`,
     },
     {
       type: 'buttons',
@@ -391,7 +267,7 @@ function hoursReply(lang) {
   return {
     type: 'text',
     text: [
-      `*${company.name}*`,
+      `*Assurances Générales du Cameroun (AGC)*`,
       company.hq,
       company.bp,
       '',
@@ -413,7 +289,7 @@ function hoursReply(lang) {
 
 function carteSante(lang) {
   const en = lang === 'en';
-  const dla = healthPartners.douala.slice(0, 6).map((x) => `• ${x}`).join('\n');
+  const dla = healthPartners.douala.slice(0, 8).map((x) => `• ${x}`).join('\n');
   const yde = healthPartners.yaounde.map((x) => `• ${x}`).join('\n');
   return {
     type: 'text',
@@ -460,7 +336,7 @@ function quoteProductList(lang) {
   const en = lang === 'en';
   return {
     type: 'list',
-    body: en ? 'Which product do you want a *free quote* for?' : 'Pour quel produit voulez-vous un *devis gratuit* ?',
+    body: en ? 'Which product do you want a *free quote request* for?' : 'Pour quel produit voulez-vous une *demande de devis* ?',
     button: en ? 'Choose product' : 'Choisir le produit',
     sections: [
       {
@@ -479,12 +355,9 @@ function quoteProductList(lang) {
   };
 }
 
-
 function notifyNote(en) {
   if (leads.canNotify()) {
-    return en
-      ? 'AGC has been notified on the lead channel.'
-      : 'AGC a été notifiée sur le canal des demandes.';
+    return en ? 'AGC has been notified on the lead channel.' : 'AGC a été notifiée sur le canal des demandes.';
   }
   return en
     ? `This chat cannot email AGC by itself. Call ${company.phones[0]} or write ${company.email} with these details.`
@@ -492,9 +365,7 @@ function notifyNote(en) {
 }
 
 function quoteSavedText(en, lead, data) {
-  const head = en
-    ? `✅ *Request saved* (n° ${lead.id.slice(0, 8)})`
-    : `✅ *Demande enregistrée* (n° ${lead.id.slice(0, 8)})`;
+  const head = en ? `✅ *Request saved* (n° ${lead.id.slice(0, 8)})` : `✅ *Demande enregistrée* (n° ${lead.id.slice(0, 8)})`;
   const body = en
     ? `Product: ${data.productTitle}\nName: ${data.name}\nCity: ${data.city}`
     : `Produit : ${data.productTitle}\nNom : ${data.name}\nVille : ${data.city}`;
@@ -502,65 +373,23 @@ function quoteSavedText(en, lead, data) {
 }
 
 function claimSavedText(en, lead) {
-  const head = en
-    ? `✅ *Claim recorded* (n° ${lead.id.slice(0, 8)})`
-    : `✅ *Sinistre enregistré* (n° ${lead.id.slice(0, 8)})`;
-  return `${head}\n\n${notifyNote(en)}\n${company.phones.join('\n')}\n\n${en ? 'Type *menu* to continue.' : 'Tapez *menu* pour continuer.'}`;
+  const head = en ? `✅ *Claim recorded* (n° ${lead.id.slice(0, 8)})` : `✅ *Sinistre enregistré* (n° ${lead.id.slice(0, 8)})`;
+  return `${head}\n\n${notifyNote(en)}\n${company.phones.join('\n')}\n\n${en ? 'I cannot settle a claim from this chat. An AGC file manager follows it.' : 'Je ne règle pas un sinistre depuis ce chat. Un gestionnaire AGC suit le dossier.'}`;
 }
 
 function counselorText(en) {
   return en
-    ? `I’ll stay with you 😊 For a human AGC adviser: ${company.phones[0]} or ${company.email}.\n${notifyNote(en)}\nComplaints: reclamationsclients@agc-assurances.com / +237 692 34 19 34.\n\nAsk me anything else, or type *menu*.`
-    : `Je reste avec vous 😊 Pour un conseiller AGC en chair et en os : ${company.phones[0]} ou ${company.email}.\n${notifyNote(en)}\nRéclamations : reclamationsclients@agc-assurances.com / +237 692 34 19 34.\n\nPosez-moi autre chose, ou tapez *menu*.`;
+    ? `I’ll stay with you 😊 For a human AGC adviser: ${company.phones[0]} or ${company.email}.\n${notifyNote(en)}\nComplaints: reclamationsclients@agc-assurances.com / +237 692 34 19 34.`
+    : `Je reste avec vous 😊 Pour un conseiller AGC en chair et en os : ${company.phones[0]} ou ${company.email}.\n${notifyNote(en)}\nRéclamations : reclamationsclients@agc-assurances.com / +237 692 34 19 34.`;
 }
 
 function mapClaimType(text) {
   const t = norm(text);
   if (/auto|voiture|accident/.test(t)) return 'auto';
-  if (/sante|santé|health|hopital|hôpital/.test(t)) return 'sante';
+  if (/sante|health|hopital/.test(t)) return 'sante';
   if (/\bvol\b|\btheft\b|\bvole\b/.test(t)) return 'vol';
-  if (/incendie|fire|degat|dégât/.test(t)) return 'incendie';
+  if (/incendie|fire|degat/.test(t)) return 'incendie';
   if (/autre|other/.test(t)) return 'autre';
-  return null;
-}
-
-function detectIntent(text) {
-  const t = text.toLowerCase();
-  if (GREET.test(t.trim()) || /\bmenu\b/.test(t)) return 'menu';
-  if (
-    /\b(presente|presentez|presenter|présente|présentez|present|show|list)\b/.test(t) &&
-    /\b(service|services|produit|produits|offre|offres)\b/.test(t)
-  ) {
-    return 'menu';
-  }
-  if (/\b(vos|nos|tes) services\b/.test(t) || /what (do you|can you) (offer|do|sell)/.test(t)) return 'menu';
-  if (/^(anglais|english|in english|en anglais)$/i.test(t.trim())) return 'lang_en';
-  if (/^(français|francais|francaise|française|in french|en francais|en français|en francaise|en française|french)$/i.test(t.trim()))
-    return 'lang_fr';
-  if (/disclaimer|confidential|privacy|gemini|politique de confidential|mon espace|attestation|binding quote/.test(t)) {
-    return 'privacy';
-  }
-  if (/devis|quote|souscrire|cotation|how much|combien (coute|coûte|pour|est)/.test(t)) return 'devis';
-  if (/sinistre|claim|déclarer un accident|declarer un accident/.test(t)) return 'sinistre';
-  if (
-    /where (is|are) (agc|the office|your office|you\b)|ou (est|sont) (agc|vous|le siege)|siege social|head office|headquarters|\badresse\b/.test(
-      t
-    )
-  ) {
-    return 'hq';
-  }
-  if (/agence|agences|branch|branches|bureau|bureaux|espace client/.test(t)) return 'agences';
-  if (/horaire|heures d.ouverture|hours|vous êtes ouvert|vous etes ouvert/.test(t)) return 'horaires';
-  if (/carte.?sant|health card|tiers payant/.test(t)) return 'carte';
-  if (/conseiller|parler à un|parler a un|appeler un conseiller|counsellor|counselor/.test(t)) return 'conseiller';
-  if (/auto|voiture|véhicule|vehicule|motor|car|moto|taxi/.test(t)) return 'auto';
-  if (/santé|sante|maladie|hôpital|hopital|health/.test(t)) return 'sante';
-  if (/voyage|visa|aéroport|aeroport|travel/.test(t)) return 'voyage';
-  if (/\bmrh\b|multirisques? habitation|assurance habitation|\bmaison\b|\blogement\b|home insurance/.test(t))
-    return 'mrh';
-  if (/multirisque|incendie/.test(t)) return 'multi';
-  if (/transport|marchandise|cargo/.test(t)) return 'transport';
-  if (/\brc\b|responsabilité|responsabilite|liability/.test(t)) return 'rc';
   return null;
 }
 
@@ -597,16 +426,16 @@ function startQuote(from, productId) {
     return {
       type: 'text',
       text: en
-        ? `Quote for *${title}* (${existingName}).\nWhich *city* are you in?`
-        : `Devis *${title}* (${existingName}).\nDans *quelle ville* êtes-vous ?`,
+        ? `Quote request for *${title}* (${existingName}). I will not invent a price.\nWhich *city* are you in?`
+        : `Demande de devis *${title}* (${existingName}). Je n’invente pas de tarif.\nDans *quelle ville* êtes-vous ?`,
     };
   }
   sessions.setStep(from, 'quote_name', { product: productId, productTitle: title });
   return {
     type: 'text',
     text: en
-      ? `Quote for *${title}* — free, not binding, no price invented here.\n\nWhat is your *full name*?`
-      : `Devis *${title}* — gratuit, sans engagement, aucun tarif inventé ici.\n\nQuel est *votre nom et prénom* ?`,
+      ? `Quote request for *${title}* — free, not binding, no price invented here.\n\nWhat is your *full name*?`
+      : `Demande de devis *${title}* — gratuit, sans engagement, aucun tarif inventé ici.\n\nQuel est *votre nom et prénom* ?`,
   };
 }
 
@@ -622,8 +451,8 @@ function handleQuoteProduct(from, session, text) {
       {
         type: 'text',
         text: en
-          ? `Thanks ${text}. Which product should we quote? Reply *1–6* or e.g. motor, health.`
-          : `Merci ${text}. Pour quel produit ? Répondez *1–6* ou auto, santé, voyage…`,
+          ? `Thanks ${text}. Which product should we quote? Reply with a number or e.g. motor, health.`
+          : `Merci ${text}. Pour quel produit ? Répondez par un numéro ou auto, santé, voyage…`,
       },
       quoteProductList(lang),
     ];
@@ -665,10 +494,7 @@ function handleQuote(from, session, text) {
     const lead = leads.add({ kind: 'devis', ...data, phone: from });
     sessions.reset(from);
     return [
-      {
-        type: 'text',
-        text: quoteSavedText(en, lead, data),
-      },
+      { type: 'text', text: quoteSavedText(en, lead, data) },
       {
         type: 'buttons',
         body: en ? 'Anything else?' : 'Autre chose ?',
@@ -687,7 +513,9 @@ function startClaim(from) {
   sessions.setStep(from, 'claim_type');
   return {
     type: 'list',
-    body: en ? 'What type of claim is this?' : 'Quel type de sinistre voulez-vous déclarer ?',
+    body: en
+      ? 'What type of claim is this? I record it — I cannot pay or refuse a claim from this chat.'
+      : 'Quel type de sinistre ? Je l’enregistre — je ne paie ni ne refuse un dossier depuis ce chat.',
     button: en ? 'Claim type' : 'Type de sinistre',
     sections: [
       {
@@ -719,12 +547,7 @@ function handleClaim(from, session, text) {
     const data = { ...session.data, description: text, from };
     const lead = leads.add({ kind: 'sinistre', ...data, phone: from });
     sessions.reset(from);
-    return {
-      type: 'text',
-      text: en
-        ? claimSavedText(true, lead)
-        : claimSavedText(false, lead),
-    };
+    return { type: 'text', text: claimSavedText(en, lead) };
   }
   return null;
 }
@@ -734,65 +557,138 @@ function counselor(from) {
   sessions.setStep(from, 'idle', {});
   sessions.get(from).handoff = false;
   leads.add({ kind: 'callback', phone: from, details: 'callback' });
-  return {
-    type: 'text',
-    text: counselorText(en),
-  };
+  return { type: 'text', text: counselorText(en) };
 }
 
-function repliesForIntent(from, intent) {
-  const lang = langOf(from);
-  if (intent === 'lang_en') {
-    sessions.get(from).lang = 'en';
-    sessions.reset(from);
-    sessions.get(from).greeted = true;
-    return [{ type: 'text', text: `Perfect — *${persona.name}* will stay with you in English 😊` }, mainMenu('en')];
+function isInappropriate(text) {
+  const t = ` ${norm(text)} `;
+  return (
+    /\b(nique|encule|encul|fdp|pute|salope|connard|pd\b|ntm|tg\b|ta gueule|fuck|shit|bitch|asshole|porn|porno|xxx|nude|nudes|rape|viol moi|kill yourself|suicide toi)\b/.test(
+      t
+    ) || /sex\s*(chat|pic|pics|photo|video|vid)/.test(t)
+  );
+}
+
+function inappropriateReply(lang) {
+  const en = lang === 'en';
+  return [
+    {
+      type: 'text',
+      text: en
+        ? `I’m *${persona.name}*, ${persona.titleEn}. That message is not OK here — we stay respectful 🙏\n\nIf you need insurance, I’m still here.`
+        : `Je suis *${persona.name}*, ${persona.titleFr}. Ce message n’a pas sa place ici — on reste courtois 🙏\n\nSi vous avez besoin d’une assurance, je suis toujours là.`,
+    },
+  ];
+}
+
+function cannotDisclose(en, what) {
+  return en
+    ? `I don’t have access to ${what} from this chat, and I won’t pretend I do. A conseiller at an AGC Espace Clients can open it with you — tell me your city and I’ll give you the branch 😊`
+    : `Je n’ai pas accès à ${what} depuis cette conversation, et je ne vais pas faire semblant. Un conseiller dans un Espace Clients AGC peut l’ouvrir avec vous — dites-moi votre ville, je vous donne l’agence 😊`;
+}
+
+function fallbackAnswer(lang, text, session) {
+  const n = persona.name;
+  const en = lang === 'en';
+  const t = norm(text);
+  const name = session && session.data && session.data.name;
+
+  if (/\b(who am i|who i am|c est qui moi|je suis qui|qui suis je|me not you|not you|i said me|pas vous|c est moi)\b/.test(t)) {
+    if (name) {
+      return en
+        ? `You — in this chat you told me your name is *${name}*. That’s all I know about you unless you add more 😊`
+        : `Vous — dans cette conversation vous m’avez dit vous appeler *${name}*. C’est tout ce que je sais de vous, sauf si vous ajoutez 😊`;
+    }
+    return en
+      ? `You — I only know what you’ve told me here, and you haven’t given me your name yet 😊 What should I call you?`
+      : `Vous — je ne connais que ce que vous m’avez dit ici, et vous ne m’avez pas encore donné votre nom 😊 Comment dois-je vous appeler ?`;
   }
-  if (intent === 'lang_fr') {
-    sessions.get(from).lang = 'fr';
-    sessions.reset(from);
-    sessions.get(from).greeted = true;
-    return [{ type: 'text', text: `Parfait — *${persona.name}* continue avec vous en français 😊` }, mainMenu('fr')];
+
+  if (/\b(who are you|who r you|t es qui|tu es qui|vous etes qui|c est qui|tes qui|who is this)\b/.test(t) && !/\bam i\b/.test(t)) {
+    return en
+      ? `I’m *${n}*, ${persona.titleEn} ☺️ I help with AGC cover — cars, health, travel, home, branches. What do you need?`
+      : `Je suis *${n}*, ${persona.titleFr} ☺️ J’aide sur les couvertures AGC — auto, santé, voyage, habitation, agences. De quoi avez-vous besoin ?`;
   }
-  if (intent === 'privacy') {
-    return [{ type: 'text', text: `${disclaimer(lang)}\n${aiNote(lang)}` }, mainMenu(lang)];
+
+  if (/^(why|pourquoi|why what|pourquoi quoi)\s*$/.test(t)) {
+    return en
+      ? `Why — about which part of what we just said? Tell me the bit you mean 😊`
+      : `Pourquoi — à propos de quelle partie de ce qu’on vient de dire ? Précisez 😊`;
   }
-  if (intent === 'menu') {
-    sessions.reset(from);
-    return welcomeReply(from, lang);
+
+  if (/\b(mon espace|attestation|solde|police number|n de police|contrat n)\b/.test(t) || /\b(covered|suis je couvert|je suis assure)\b/.test(t)) {
+    return cannotDisclose(en, en ? 'your policy file, attestation or Mon espace' : 'votre contrat, votre attestation ou Mon espace');
   }
-  if (products[intent]) return productReply(intent, lang);
-  if (intent === 'autres') return otherProducts(lang);
-  if (intent === 'devis') {
-    sessions.setStep(from, 'quote_product');
-    return [quoteProductList(lang)];
+
+  if (/combien|how much|tarif|prime|prix|premium|cout|coût/.test(t) && /auto|sante|voyage|mrh|assurance|cover|insurance/.test(t)) {
+    return en
+      ? `I don’t invent a premium. A counsellor prices it from your details. I can take a free quote request — say *quote* and the product.`
+      : `Je n’invente pas de prime. Un conseiller tarife à partir de vos infos. Je peux prendre une demande de devis — dites *devis* et le produit.`;
   }
-  if (intent === 'sinistre') return [startClaim(from)];
-  if (intent === 'agences') return [agencyMenu(lang)];
-  if (intent === 'horaires') {
-    return [hoursReply(lang), { type: 'buttons', body: 'Menu ?', buttons: [{ id: 'menu', title: 'Menu' }] }];
+
+  if (/faim|hungry|mange|food|soif|thirsty|rice|riz|ndole|eat/.test(t)) {
+    return en
+      ? `Then eat 😊 I’m not a kitchen — I’m here when you’re ready to talk.`
+      : `Alors allez manger 😊 Je ne suis pas une cuisine — je suis là quand vous serez prêt.`;
   }
-  if (intent === 'carte') {
-    return [
-      carteSante(lang),
-      {
-        type: 'buttons',
-        body: lang === 'en' ? 'A health quote?' : 'Un devis santé ?',
-        buttons: [
-          { id: 'devis_sante', title: lang === 'en' ? 'Health quote' : 'Devis santé' },
-          { id: 'menu', title: 'Menu' },
-        ],
-      },
-    ];
+
+  if (/how are you|ca va|comment vas|comment allez/.test(t)) {
+    return en
+      ? `I’m well, thank you 😊 How are you — and how can I help?`
+      : `Je vais bien, merci 😊 Et vous — comment puis-je vous aider ?`;
   }
-  if (intent === 'conseiller') return [counselor(from)];
-  return null;
+
+  if (/\b2\s*\+?\s*2\b/.test(String(text)) || /^2 2$/.test(t)) {
+    return en ? `4 😊` : `4 😊`;
+  }
+
+  if (/where is agc|ou est agc|head office|siege|headquarters/.test(t)) {
+    return hqText(en);
+  }
+
+  if (/are you real|tu es un bot|robot|chatgpt|gemini|ia\b/.test(t)) {
+    return en
+      ? `I’m *${n}*, AGC’s advisor on this chat. I use tools behind the scenes — you talk to me, not to a cave of robots 😊`
+      : `Je suis *${n}*, conseillère AGC sur cette conversation. Des outils m’aident en coulisse — vous me parlez à moi 😊`;
+  }
+
+  return en
+    ? `I’m with you. Say it again in your own words — I’ll answer 😊`
+    : `Je suis avec vous. Reformulez avec vos mots — je vous réponds 😊`;
+}
+
+async function freeTalk(from, userText, extra) {
+  const session = sessions.get(from);
+  const spoken = langOf(from);
+  const topic = extra && extra.topic;
+  let asked = String(userText || '').trim();
+  if (topic) {
+    asked += `\n[Context: the user selected AGC menu item “${topic}”. Answer from AGC facts for that item. Vary the wording. Never invent a premium. Do not restart the greeting.]`;
+  }
+  if (session.data && session.data.name) {
+    asked += `\n[Name they shared in this chat: ${session.data.name}]`;
+  }
+  if (ai.isConfigured()) {
+    const guide = await ai.chat({ lang: spoken, history: session.history || [], userText: asked });
+    if (guide.ok && guide.text) {
+      remember(session, userText, guide.text);
+      return [{ type: 'text', text: guide.text }];
+    }
+  }
+  if (topic && products[topic]) return productReply(topic, spoken);
+  if (topic === 'horaires') return [hoursReply(spoken)];
+  if (topic === 'carte') return [carteSante(spoken)];
+  if (topic === 'autres') return otherProducts(spoken);
+  if (topic === 'agences') return [agencyMenu(spoken)];
+  const reply = fallbackAnswer(spoken, userText, session);
+  remember(session, userText, reply);
+  return [{ type: 'text', text: reply }];
 }
 
 function handlePayload(from, payload) {
   const lang = langOf(from);
   if (!payload) return null;
-  if (payload === 'menu' || payload === 'activate') return repliesForIntent(from, 'menu');
+  if (payload === 'menu' || payload === 'activate') return welcomeReply(from, lang);
   if (payload.startsWith('devis_')) return [startQuote(from, payload.slice(6))];
   if (payload.startsWith('qp_')) return [startQuote(from, payload.slice(3))];
   if (payload.startsWith('reg_')) {
@@ -814,207 +710,55 @@ function handlePayload(from, payload) {
       type: 'text',
       text:
         lang === 'en'
-          ? 'What is your AGC *policy number*? (or type *unknown*)'
-          : 'Quel est votre *n° de police* AGC ? (ou tapez *inconnu*)',
+          ? 'What is your AGC *policy number*? (or type *unknown* — I cannot open the file from here.)'
+          : 'Quel est votre *n° de police* AGC ? (ou tapez *inconnu* — je n’ouvre pas le dossier depuis ici.)',
     };
   }
-  return repliesForIntent(from, payload);
-}
-
-function withGuide(say, replies) {
-  if (!say) return replies;
-  return [{ type: 'text', text: say }, ...replies];
-}
-
-function isInappropriate(text) {
-  const t = ` ${norm(text)} `;
-  return (
-    /\b(nique|encule|encul|fdp|pute|salope|connard|pd\b|ntm|tg\b|ta gueule|fuck|shit|bitch|asshole|porn|porno|xxx|nude|nudes|rape|viol moi|kill yourself|suicide toi)\b/.test(
-      t
-    ) || /sex\s*(chat|pic|pics|photo|video|vid)/.test(t)
-  );
-}
-
-function inappropriateReply(lang) {
-  const en = lang === 'en';
-  return [
-    {
-      type: 'text',
-      text: en
-        ? `I’m *${persona.name}*, ${persona.titleEn}. That message is not OK here — we stay respectful 🙏\n\nIf you need insurance, I’m still here. Type *menu*, or say auto, health, quote, claim, or a city.`
-        : `Je suis *${persona.name}*, ${persona.titleFr}. Ce message n’a pas sa place ici — on reste courtois 🙏\n\nSi vous avez besoin d’une assurance, je suis toujours là. Tapez *menu*, ou dites auto, santé, devis, sinistre ou une ville.`,
-    },
-  ];
-}
-
-function isAck(text) {
-  return /^(ok|okay|okey|daccord|d accord|dac|lol|mdr|haha|hihi|thanks|thank you|merci|👍|🙏|🙂|😊|😂)$/i.test(
-    String(text || '').trim()
-  );
-}
-
-function isNonsense(text) {
-  const raw = String(text || '').trim();
-  if (!raw) return false;
-  if (/^(.)\1{5,}$/.test(raw)) return true;
-  if (/^[^0-9a-zàâäéèêëïîôùûüç]+$/i.test(raw) && raw.length < 24) return true;
-  const t = raw.toLowerCase();
-  const compact = t.replace(/\s/g, '');
-  if (/^(asdf+|jkl+|qwer+|zxcv+|hjkl+|qwerty)+$/i.test(compact)) return true;
-  if (/asdfg|qwerty|zxcvb/i.test(compact) && compact.length <= 14) return true;
-  const letters = t.replace(/[^a-zàâäéèêëïîôùûüç]/gi, '');
-  const vowels = (letters.match(/[aeiouyàâéèêëïîôùûü]/gi) || []).length;
-  if (letters.length >= 8 && vowels === 0) return true;
-  return false;
-}
-
-function isOffTopic(text) {
-  const t = norm(text);
-  if (!t) return false;
-  if (/assurance|devis|sinistre|agence|police|contrat|sante|auto|voyage|carte sante|horaires|conseiller/.test(t)) {
-    return false;
+  if (payload === 'devis') {
+    sessions.setStep(from, 'quote_product');
+    return [quoteProductList(lang)];
   }
-  if (isNonsense(text)) return true;
-  if (/\b(how much|combien|how many)\b/.test(t)) return false;
-  if (/how old|quel age|what color|who are you|what is your name|ou habites|ca va\b/.test(t)) return true;
-  return /\b(faim|hungry|mange|food|soif|thirsty|blague|joke|météo|meteo|weather|football|foot|match|bored|ennui|ennuy|m ennui|je m ennuie|i m bored|how old|quel age|marry|marie|copine|copain|love you|je t aime|belle|handsome|sexy|tu fais quoi|on parle|on discutes|tchat|chatte|are you real|tu es vraie|tu es un bot|robot|ia\b|chatgpt|gemini|homework|devoir|dissertation|president|politique|religion|dieu|jesus|riddle|devinette|chanson|lyrics|voix|sticker|meme|wesh|bro|yo\b|test$|testing|pk tu reponds|pourquoi tu reponds|belife|axa|saham|askania|sunu|moon|lune|color|couleur)\b/.test(
-    t
-  );
-}
-
-function bumpOffTopic(from) {
-  const s = sessions.get(from);
-  s.offTopic = (Number(s.offTopic) || 0) + 1;
-  return s.offTopic;
-}
-
-function wrapOffTopic(from, lang, gag) {
-  const n = bumpOffTopic(from);
-  const en = lang === 'en';
-  const replies = [{ type: 'text', text: gag }];
-  if (n === 1 || n === 2) {
-    replies.push({
-      type: 'buttons',
-      body: en ? 'Whenever you want AGC:' : 'Quand vous voulez AGC :',
-      buttons: [
-        { id: 'menu', title: 'Menu' },
-        { id: 'sante', title: en ? 'Health' : 'Santé' },
-      ],
-    });
-  } else if (n % 3 === 0) {
-    replies.push({
-      type: 'text',
-      text: en
-        ? `I’m happy to riff a bit 😄 I’m still *${persona.name}* at AGC — type *menu* when you want insurance.`
-        : `Je peux papoter un peu 😄 Je reste *${persona.name}* chez AGC — tapez *menu* dès que vous voulez une assurance.`,
-    });
+  if (payload === 'sinistre') return [startClaim(from)];
+  if (payload === 'conseiller') return [counselor(from)];
+  if (payload === 'lang_en') {
+    sessions.get(from).lang = 'en';
+    return [{ type: 'text', text: `Perfect — *${persona.name}* will stay with you in English 😊` }, mainMenu('en')];
   }
-  return replies;
-}
-
-function ackReply(lang) {
-  const en = lang === 'en';
-  return [{ type: 'text', text: en ? 'Right here 😊' : 'Je suis là 😊' }];
-}
-
-function chitchatReply(from, lang, text) {
-  const en = lang === 'en';
-  const t = norm(text);
-  let gag;
-  if (isNonsense(text)) {
-    gag = en
-      ? `I got the vibe, not the sentence 😄 Try *menu*, or tell me auto, health, a city…`
-      : `J’ai le vibe, pas la phrase 😄 Tapez *menu*, ou dites auto, santé, une ville…`;
-  } else if (/faim|hungry|mange|food|soif|thirsty/.test(t)) {
-    gag = en
-      ? `Ha — I don’t plate ndolé, I cover people 😅 Eat first. Then I’m here for *health* or *motor*.`
-      : `Ha — je ne fais pas le ndolé, je couvre les gens 😅 Allez manger. Après je m’occupe de votre *santé* ou votre *auto*.`;
-  } else if (/foot|match|football/.test(t)) {
-    gag = en
-      ? `I don’t have the score ⚽ I can cover the car that takes you to the stadium though.`
-      : `Le score, je n’ai pas ⚽ L’auto qui vous emmène au stade, oui.`;
-  } else if (/how old|quel age|tu as quel age|age are you/.test(t)) {
-    gag = en
-      ? `Old enough to know AGC since *2002* 😄 I cover cars and people — not my birthday. *Menu*?`
-      : `Assez pour connaître AGC depuis *2002* 😄 Je couvre les voitures et les gens — pas mon anniversaire. *Menu* ?`;
-  } else if (/color|couleur|moon|lune/.test(t)) {
-    gag = en
-      ? `The moon can look silver — I cover cars, not astronomy 🌙 Tap *menu* when you want AGC.`
-      : `La lune peut être argentée — je couvre les voitures, pas le ciel 🌙 *Menu* quand vous voulez AGC.`;
-  } else if (/bored|ennui|je m ennuie|on parle|on discutes|tu fais quoi|wesh|bro|^yo$/.test(t)) {
-    gag = en
-      ? `Boredom I can’t insure 😌 People, cars, trips — yes. Tell me a city or tap *menu*.`
-      : `L’ennui, je ne l’assure pas 😌 Les gens, les voitures, les voyages — oui. Dites une ville ou tapez *menu*.`;
-  } else if (/marry|marie|copine|copain|love you|je t aime|belle|handsome|sexy/.test(t)) {
-    gag = en
-      ? `That’s kind — I’m *${persona.name}*, AGC advisor, not on a dating app 😅 Motor, health, travel: that’s my lane.`
-      : `C’est gentil — je suis *${persona.name}*, conseillère AGC, pas sur une appli de rencontre 😅 Auto, santé, voyage : c’est ma voie.`;
-  } else if (/are you real|tu es vraie|tu es un bot|robot|chatgpt|ia\b/.test(t)) {
-    gag = en
-      ? `I’m *${persona.name}*, AGC’s WhatsApp advisor. Real answers, real branches. Not a mystery AI in a cave 😊`
-      : `Je suis *${persona.name}*, conseillère AGC sur WhatsApp. Vraies agences, vrais produits. Pas un génie dans une grotte 😊`;
-  } else if (/blague|joke|riddle|devinette/.test(t)) {
-    gag = en
-      ? `Why did the car go to AGC? It wanted fewer surprises 🚗😄 *Menu* when you’re done giggling.`
-      : `Pourquoi la voiture est allée chez AGC ? Elle en avait marre des surprises 🚗😄 *Menu* quand vous avez fini de rire.`;
-  } else if (/météo|meteo|weather/.test(t)) {
-    gag = en
-      ? `I don’t do the sky ☁️ I do the umbrella called insurance. Health or motor?`
-      : `Le ciel, ce n’est pas moi ☁️ Le parapluie qui s’appelle assurance, si. Santé ou auto ?`;
-  } else if (/homework|devoir|dissertation/.test(t)) {
-    gag = en
-      ? `I won’t write your homework. I will help with an AGC *quote* or a *branch*.`
-      : `Je ne fais pas vos devoirs. Un *devis* AGC ou une *agence*, oui.`;
-  } else if (/president|politique|religion|dieu|jesus/.test(t)) {
-    gag = en
-      ? `I leave that to the palaver tree. Here it’s AGC: auto, health, claims, branches.`
-      : `Ça, c’est sous l’arbre à palabres. Ici c’est AGC : auto, santé, sinistres, agences.`;
-  } else if (/\b2\s*\+?\s*2\b/.test(String(text)) || /^2 2$/.test(t) || /^(quoi|what|pourquoi|why)\s*\??$/.test(t)) {
-    gag = en
-      ? `4 — and I’m still better on *quotes* than on maths class 😊`
-      : `4 — et je suis plus forte sur les *devis* que sur le cours de maths 😊`;
-  } else if (/belife|axa|saham|askania|sunu/.test(t)) {
-    gag = en
-      ? `I speak for *AGC Assurances* only. Want our menu, a branch, or a quote request?`
-      : `Je parle pour *AGC Assurances* seulement. Menu, agence, ou demande de devis ?`;
-  } else {
-    gag = en
-      ? `Noted 😄 I’m *${persona.name}* at AGC — not a 24h gossip line, but I won’t vanish. *Menu* when you want insurance.`
-      : `Noté 😄 Je suis *${persona.name}* chez AGC — pas une ligne de palabre 24h, mais je ne disparais pas. *Menu* quand vous voulez une assurance.`;
+  if (payload === 'lang_fr') {
+    sessions.get(from).lang = 'fr';
+    return [{ type: 'text', text: `Parfait — *${persona.name}* continue avec vous en français 😊` }, mainMenu('fr')];
   }
-  return wrapOffTopic(from, lang, gag);
+  return null;
 }
 
 async function processMessage({ from, text, payload }) {
   const session = sessions.get(from);
   const trimmed = (text || '').trim();
-  applyMessageLang(session, trimmed, null);
+  applyMessageLang(session, trimmed);
   const lang = langOf(from);
-  const en = lang === 'en';
-
   const low = trimmed.toLowerCase();
+
   if (/^(english|anglais|in english|en anglais)$/i.test(low) || low === 'en') {
     session.lang = 'en';
     session.handoff = false;
     sessions.reset(from);
     sessions.get(from).greeted = true;
+    sessions.get(from).lang = 'en';
     return [{ type: 'text', text: `Perfect — *${persona.name}* will stay with you in English 😊` }, mainMenu('en')];
   }
   if (
-    /^(français|francais|francaise|française|in french|en francais|en français|en francaise|en française|french)$/i.test(
-      low
-    ) ||
+    /^(français|francais|francaise|française|in french|en francais|en français|en francaise|en française|french)$/i.test(low) ||
     low === 'fr'
   ) {
     session.lang = 'fr';
     session.handoff = false;
     sessions.reset(from);
     sessions.get(from).greeted = true;
+    sessions.get(from).lang = 'fr';
     return [{ type: 'text', text: `Parfait — *${persona.name}* continue avec vous en français 😊` }, mainMenu('fr')];
   }
 
   if (isInappropriate(trimmed)) return inappropriateReply(langOf(from));
-
   if (session.handoff) session.handoff = false;
 
   if (!payload && session.step && session.step !== 'idle' && isNav(trimmed)) {
@@ -1023,15 +767,11 @@ async function processMessage({ from, text, payload }) {
   }
 
   if (payload === 'horaires') return [hoursReply(langOf(from))];
-  if (payload === 'hq') return [hqReply(langOf(from))];
+  if (payload === 'hq') return [{ type: 'text', text: hqText(langOf(from) === 'en') }];
+
   if (
     payload &&
-    (products[payload] ||
-      payload === 'autres' ||
-      payload === 'multi' ||
-      payload === 'transport' ||
-      payload === 'rc' ||
-      payload === 'carte')
+    (products[payload] || payload === 'autres' || payload === 'multi' || payload === 'transport' || payload === 'rc' || payload === 'carte')
   ) {
     return freeTalk(from, trimmed || payload, { topic: payload });
   }
@@ -1065,43 +805,20 @@ async function processMessage({ from, text, payload }) {
     if (out) return Array.isArray(out) ? out : [out];
   }
 
-  const idle = !session.step || session.step === 'idle';
-  const intent = detectIntent(trimmed);
-
-  if (idle && !payload && (GREET.test(trimmed) || intent === 'menu')) {
-    return welcomeOrMenu(from);
-  }
-
-  if (intent === 'lang_en' || intent === 'lang_fr') {
-    const out = repliesForIntent(from, intent);
-    if (out) return Array.isArray(out) ? out : [out];
+  if (!payload && GREET.test(trimmed)) {
+    return welcomeReply(from, langOf(from));
   }
 
   const found = lookupAgencies(trimmed);
   if (found && found.length) {
-    const asksAgency = /agence|agences|branch|branches|bureau|espace client|ou est|ou se trouve|trouver/.test(
-      norm(trimmed)
-    );
-    const shortPlace = norm(trimmed).split(' ').length <= 4;
-    if (asksAgency || shortPlace || intent === 'agences') {
+    const asksAgency = /agence|agences|branch|branches|bureau|espace client|ou est|ou se trouve|trouver/.test(norm(trimmed));
+    const shortPlace = norm(trimmed).split(' ').length <= 3;
+    if (asksAgency || shortPlace) {
       return agencyListReply(found, langOf(from));
     }
   }
 
-  if (intent === 'hq') return [hqReply(langOf(from))];
-  if (intent === 'horaires') return [hoursReply(langOf(from))];
-
-  if (intent === 'devis' || intent === 'sinistre' || intent === 'conseiller' || intent === 'agences' || intent === 'privacy') {
-    const out = repliesForIntent(from, intent);
-    if (out) return Array.isArray(out) ? out : [out];
-  }
-
-  if (intent && products[intent]) return freeTalk(from, trimmed, { topic: intent });
-  if (intent === 'autres' || intent === 'carte') {
-    return freeTalk(from, trimmed, { topic: intent });
-  }
-
-  if (!trimmed) return welcomeOrMenu(from);
+  if (!trimmed) return welcomeReply(from, langOf(from));
   return freeTalk(from, trimmed, {});
 }
 
