@@ -147,11 +147,10 @@ function applyMessageLang(session, text, classifiedLang) {
   if (classifiedLang === 'en' || classifiedLang === 'fr') session.lang = classifiedLang;
 }
 
-function pick(arr, seed) {
-  const s = String(seed || '') + String(Date.now());
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
-  return arr[Math.abs(h) % arr.length];
+function pick(arr) {
+  const list = arr || [];
+  if (!list.length) return '';
+  return list[Math.floor(Math.random() * list.length)];
 }
 
 function localAnswer(lang, text) {
@@ -219,17 +218,34 @@ function localAnswer(lang, text) {
   if (/where is agc|ou est agc|head office|siege|headquarters/.test(t)) {
     return hqText(en);
   }
+  if (/t es qui|c est qui|qui es tu|qui etes vous|who are you|what is your name|ton nom/.test(t)) {
+    return pick(
+      en
+        ? [
+            `I’m *${n}* ☺️ ${persona.titleEn} 🛡️ Ask me anything about cover — or open *Options*.`,
+            `*${n}*. AGC counsellor on WhatsApp. Not a mystery bot in a cave.`,
+          ]
+        : [
+            `Je suis *${n}* ☺️ ${persona.titleFr} 🛡️ Posez votre question — ou ouvrez *Options*.`,
+            `*${n}*. Conseillère AGC sur WhatsApp. Pas un génie dans une grotte.`,
+          ]
+    );
+  }
+  if (/^(pourquoi|why|pourquoi\s*\?|why\s*\?)$/.test(t)) {
+    return en
+      ? `Why what? Say it in a sentence — I’m listening 😊`
+      : `Pourquoi quoi ? Une petite phrase — je vous écoute 😊`;
+  }
   return pick(
     en
       ? [
-          `I’m *${n}* at AGC 😊 I cover cars, health, travel, branches. Tell me what you need in your own words.`,
-          `Still with you — *${n}*, Assurances Générales du Cameroun (AGC). Motor, health, a city, or just say it plainly.`,
+          `I’m here 😊 Say it another way, or open *Options*.`,
+          `Got you. A city, a product, or *Options* — your call.`,
         ]
       : [
-          `Je suis *${n}* chez AGC 😊 Auto, santé, voyage, agences. Dites-le avec vos mots.`,
-          `Toujours là — *${n}*, Assurances Générales du Cameroun (AGC). Auto, santé, une ville, ou une phrase simple.`,
-        ],
-    text
+          `Je suis là 😊 Dites-le autrement, ou ouvrez *Options*.`,
+          `C’est noté. Une ville, un produit, ou *Options* — à vous.`,
+        ]
   );
 }
 
@@ -315,7 +331,7 @@ function mainMenu(lang) {
         : ['On regarde quoi ?', 'Touchez ce qu’il vous faut — ou écrivez-le.', 'Auto, santé, une agence… à vous.'],
       `${lang}-menu`
     ),
-    button: en ? 'Open menu' : 'Voir le menu',
+    button: 'Options',
     sections: [
       {
         title: en ? 'Products' : 'Produits',
@@ -829,7 +845,7 @@ function withGuide(say, replies) {
 function isInappropriate(text) {
   const t = ` ${norm(text)} `;
   return (
-    /\b(nique|encule|encul|fdp|pute|salope|connard|pd\b|ntm|tg\b|ta gueule|fuck|shit|bitch|asshole|porn|porno|xxx|nude|nudes|rape|viol moi|kill yourself|suicide toi)\b/.test(
+    /\b(nique|encule|encul|fdp|pute|salope|connard|pd\b|ntm|tg\b|ta gueule|fuck|shit|bitch|asshole|stupid|idiot|ferme la|tais toi|stop noise|t es fou|tes fou|t es fous|tes fous|porn|porno|xxx|nude|nudes|rape|viol moi|kill yourself|suicide toi)\b/.test(
       t
     ) || /sex\s*(chat|pic|pics|photo|video|vid)/.test(t)
   );
@@ -876,7 +892,7 @@ function isOffTopic(text) {
   }
   if (isNonsense(text)) return true;
   if (/\b(how much|combien|how many)\b/.test(t)) return false;
-  if (/how old|quel age|what color|who are you|what is your name|ou habites|ca va\b/.test(t)) return true;
+  if (/how old|quel age|what color|who are you|what is your name|t es qui|c est qui|qui es tu|qui etes vous|ou habites|ca va\b|^(pourquoi|why)$/.test(t)) return true;
   return /\b(faim|hungry|mange|food|soif|thirsty|blague|joke|météo|meteo|weather|football|foot|match|bored|ennui|ennuy|m ennui|je m ennuie|i m bored|how old|quel age|marry|marie|copine|copain|love you|je t aime|belle|handsome|sexy|tu fais quoi|on parle|on discutes|tchat|chatte|are you real|tu es vraie|tu es un bot|robot|ia\b|chatgpt|gemini|homework|devoir|dissertation|president|politique|religion|dieu|jesus|riddle|devinette|chanson|lyrics|voix|sticker|meme|wesh|bro|yo\b|test$|testing|pk tu reponds|pourquoi tu reponds|belife|axa|saham|askania|sunu|moon|lune|color|couleur)\b/.test(
     t
   );
@@ -890,16 +906,8 @@ function bumpOffTopic(from) {
 
 function wrapOffTopic(from, lang, gag) {
   const n = bumpOffTopic(from);
-  const en = lang === 'en';
   const replies = [{ type: 'text', text: gag }];
-  if (n % 4 === 0) {
-    replies.push({
-      type: 'text',
-      text: en
-        ? `I’m happy to riff a bit 😄 I’m still *${persona.name}* at AGC — type *menu* when you want insurance.`
-        : `Je peux papoter un peu 😄 Je reste *${persona.name}* chez AGC — tapez *menu* dès que vous voulez une assurance.`,
-    });
-  }
+  if (n === 1 || n % 3 === 0) replies.push(mainMenu(lang));
   return replies;
 }
 
@@ -940,6 +948,16 @@ function chitchatReply(from, lang, text) {
     gag = en
       ? `That’s kind — I’m *${persona.name}*, AGC advisor, not on a dating app 😅 Motor, health, travel: that’s my lane.`
       : `C’est gentil — je suis *${persona.name}*, conseillère AGC, pas sur une appli de rencontre 😅 Auto, santé, voyage : c’est ma voie.`;
+  } else if (/t es qui|c est qui|qui es tu|qui etes vous|who are you|what is your name|ton nom/.test(t)) {
+    gag = en
+      ? `I’m *${persona.name}* ☺️ ${persona.titleEn}. Open *Options* when you want a product.`
+      : `Je suis *${persona.name}* ☺️ ${persona.titleFr}. Ouvrez *Options* pour un produit.`;
+  } else if (/^(pourquoi|why)$/.test(t)) {
+    gag = en ? `Why what? Give me a sentence 😊` : `Pourquoi quoi ? Une phrase et j’y vais 😊`;
+  } else if (/stop noise|tais toi|silence/.test(t)) {
+    gag = en
+      ? `Volume down. I’m still here if you need AGC.`
+      : `Je baisse le volume. Je reste là si vous avez besoin d’AGC.`;
   } else if (/are you real|tu es vraie|tu es un bot|robot|chatgpt|ia\b/.test(t)) {
     gag = en
       ? `I’m *${persona.name}*, AGC’s WhatsApp advisor. Real answers, real branches. Not a mystery AI in a cave 😊`
@@ -950,8 +968,8 @@ function chitchatReply(from, lang, text) {
       : `Pourquoi la voiture est allée chez AGC ? Elle en avait marre des surprises 🚗😄 *Menu* quand vous avez fini de rire.`;
   } else if (/météo|meteo|weather/.test(t)) {
     gag = en
-      ? `I don’t do the sky ☁️ I do the umbrella called insurance. Health or motor?`
-      : `Le ciel, ce n’est pas moi ☁️ Le parapluie qui s’appelle assurance, si. Santé ou auto ?`;
+      ? `I don’t do the sky ☁️ I do the umbrella called insurance.`
+      : `Le ciel, ce n’est pas moi ☁️ Le parapluie qui s’appelle assurance, si.`;
   } else if (/homework|devoir|dissertation/.test(t)) {
     gag = en
       ? `I won’t write your homework. I will help with an AGC *quote* or a *branch*.`
@@ -960,7 +978,7 @@ function chitchatReply(from, lang, text) {
     gag = en
       ? `I leave that to the palaver tree. Here it’s AGC: auto, health, claims, branches.`
       : `Ça, c’est sous l’arbre à palabres. Ici c’est AGC : auto, santé, sinistres, agences.`;
-  } else if (/\b2\s*\+?\s*2\b/.test(String(text)) || /^2 2$/.test(t) || /^(quoi|what|pourquoi|why)\s*\??$/.test(t)) {
+  } else if (/\b2\s*\+?\s*2\b/.test(String(text)) || /^2 2$/.test(t)) {
     gag = en
       ? `4 — and I’m still better on *quotes* than on maths class 😊`
       : `4 — et je suis plus forte sur les *devis* que sur le cours de maths 😊`;
