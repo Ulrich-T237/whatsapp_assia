@@ -147,10 +147,11 @@ function applyMessageLang(session, text, classifiedLang) {
   if (classifiedLang === 'en' || classifiedLang === 'fr') session.lang = classifiedLang;
 }
 
-function pick(arr) {
-  const list = arr || [];
-  if (!list.length) return '';
-  return list[Math.floor(Math.random() * list.length)];
+function pick(arr, seed) {
+  const s = String(seed || '') + String(Date.now());
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return arr[Math.abs(h) % arr.length];
 }
 
 function localAnswer(lang, text) {
@@ -175,14 +176,14 @@ function localAnswer(lang, text) {
     return pick(
       en
         ? [
-            `Eat first 😊 I don’t cook — I cover people, not plates.`,
-            `Grab a plate. I’ll still be here when you’re done.`,
-            `Rice, ndolé, whatever’s on the fire — enjoy it. I’m not going anywhere.`,
+            `Eat first 😊 I don’t cook — I cover people and cars at AGC. Come back for *motor* or *health*.`,
+            `Food isn’t a policy I sell. Grab a plate, then I’m here for the car or the health card.`,
+            `Rice, ndolé, whatever’s on the fire — enjoy it. After that we can talk *motor* or *health*.`,
           ]
         : [
-            `Allez manger 😊 Je ne cuisine pas — je couvre les gens, pas les plats.`,
-            `Un plat d’abord. Je suis toujours là après.`,
-            `Ndolé, riz, peu importe — savourez. Je ne disparais pas.`,
+            `Allez manger 😊 Je ne cuisine pas — je couvre les gens et les voitures chez AGC. Après, *auto* ou *santé*.`,
+            `La faim, ce n’est pas une police. Un plat d’abord. Ensuite je suis là pour l’*auto* ou la *santé*.`,
+            `Ndolé, riz, peu importe — savourez. Après on parle *auto* ou *santé*.`,
           ],
       text
     );
@@ -218,41 +219,24 @@ function localAnswer(lang, text) {
   if (/where is agc|ou est agc|head office|siege|headquarters/.test(t)) {
     return hqText(en);
   }
-  if (/t es qui|c est qui|qui es tu|qui etes vous|who are you|what is your name|ton nom/.test(t)) {
-    return pick(
-      en
-        ? [
-            `I’m *${n}* ☺️ ${persona.titleEn} 🛡️ Ask me anything about cover — or open *Options*.`,
-            `*${n}*. AGC counsellor on WhatsApp. Not a mystery bot in a cave.`,
-          ]
-        : [
-            `Je suis *${n}* ☺️ ${persona.titleFr} 🛡️ Posez votre question — ou ouvrez *Options*.`,
-            `*${n}*. Conseillère AGC sur WhatsApp. Pas un génie dans une grotte.`,
-          ]
-    );
-  }
-  if (/^(pourquoi|why|pourquoi\s*\?|why\s*\?)$/.test(t)) {
-    return en
-      ? `Why what? Say it in a sentence — I’m listening 😊`
-      : `Pourquoi quoi ? Une petite phrase — je vous écoute 😊`;
-  }
   return pick(
     en
       ? [
-          `I’m here 😊 Say it another way, or open *Options*.`,
-          `Got you. A city, a product, or *Options* — your call.`,
+          `I’m *${n}* at AGC 😊 I cover cars, health, travel, branches. Tell me what you need in your own words.`,
+          `Still with you — *${n}*, AGC Assurances. Motor, health, a city, or just say it plainly.`,
         ]
       : [
-          `Je suis là 😊 Dites-le autrement, ou ouvrez *Options*.`,
-          `C’est noté. Une ville, un produit, ou *Options* — à vous.`,
-        ]
+          `Je suis *${n}* chez AGC 😊 Auto, santé, voyage, agences. Dites-le avec vos mots.`,
+          `Toujours là — *${n}*, AGC Assurances. Auto, santé, une ville, ou une phrase simple.`,
+        ],
+    text
   );
 }
 
 function hqText(en) {
   return en
-    ? `*Assurances Générales du Cameroun (AGC)* is in Douala:\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nMon–Fri 8:00–18:00 · Sat 9:00–13:00 · Sunday closed.\n\nAnother city? Type it (Douala, Yaoundé, Bafoussam…).`
-    : `*Assurances Générales du Cameroun (AGC)*, Douala :\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nLun–Ven 8h–18h · samedi 9h–13h · dimanche fermé.\n\nUne autre ville ? Écrivez-la (Douala, Yaoundé, Bafoussam…).`;
+    ? `*AGC Assurances* is in Douala:\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nMon–Fri 8:00–18:00 · Sat 9:00–13:00 · Sunday closed.\n\nAnother city? Type it (Douala, Yaoundé, Bafoussam…).`
+    : `*AGC Assurances*, Douala :\n${company.hq}\n${company.bp}\n\n☎ ${company.phones.join(' / ')}\n✉ ${company.email}\n\nLun–Ven 8h–18h · samedi 9h–13h · dimanche fermé.\n\nUne autre ville ? Écrivez-la (Douala, Yaoundé, Bafoussam…).`;
 }
 
 function hqReply(lang) {
@@ -331,7 +315,7 @@ function mainMenu(lang) {
         : ['On regarde quoi ?', 'Touchez ce qu’il vous faut — ou écrivez-le.', 'Auto, santé, une agence… à vous.'],
       `${lang}-menu`
     ),
-    button: 'Options',
+    button: en ? 'Open menu' : 'Voir le menu',
     sections: [
       {
         title: en ? 'Products' : 'Produits',
@@ -845,7 +829,7 @@ function withGuide(say, replies) {
 function isInappropriate(text) {
   const t = ` ${norm(text)} `;
   return (
-    /\b(nique|encule|encul|fdp|pute|salope|connard|pd\b|ntm|tg\b|ta gueule|fuck|shit|bitch|asshole|stupid|idiot|ferme la|tais toi|stop noise|t es fou|tes fou|t es fous|tes fous|porn|porno|xxx|nude|nudes|rape|viol moi|kill yourself|suicide toi)\b/.test(
+    /\b(nique|encule|encul|fdp|pute|salope|connard|pd\b|ntm|tg\b|ta gueule|fuck|shit|bitch|asshole|porn|porno|xxx|nude|nudes|rape|viol moi|kill yourself|suicide toi)\b/.test(
       t
     ) || /sex\s*(chat|pic|pics|photo|video|vid)/.test(t)
   );
@@ -892,7 +876,7 @@ function isOffTopic(text) {
   }
   if (isNonsense(text)) return true;
   if (/\b(how much|combien|how many)\b/.test(t)) return false;
-  if (/how old|quel age|what color|who are you|what is your name|t es qui|c est qui|qui es tu|qui etes vous|ou habites|ca va\b|^(pourquoi|why)$/.test(t)) return true;
+  if (/how old|quel age|what color|who are you|what is your name|ou habites|ca va\b/.test(t)) return true;
   return /\b(faim|hungry|mange|food|soif|thirsty|blague|joke|météo|meteo|weather|football|foot|match|bored|ennui|ennuy|m ennui|je m ennuie|i m bored|how old|quel age|marry|marie|copine|copain|love you|je t aime|belle|handsome|sexy|tu fais quoi|on parle|on discutes|tchat|chatte|are you real|tu es vraie|tu es un bot|robot|ia\b|chatgpt|gemini|homework|devoir|dissertation|president|politique|religion|dieu|jesus|riddle|devinette|chanson|lyrics|voix|sticker|meme|wesh|bro|yo\b|test$|testing|pk tu reponds|pourquoi tu reponds|belife|axa|saham|askania|sunu|moon|lune|color|couleur)\b/.test(
     t
   );
@@ -906,8 +890,25 @@ function bumpOffTopic(from) {
 
 function wrapOffTopic(from, lang, gag) {
   const n = bumpOffTopic(from);
+  const en = lang === 'en';
   const replies = [{ type: 'text', text: gag }];
-  if (n === 1 || n % 3 === 0) replies.push(mainMenu(lang));
+  if (n === 1 || n === 2) {
+    replies.push({
+      type: 'buttons',
+      body: en ? 'Whenever you want AGC:' : 'Quand vous voulez AGC :',
+      buttons: [
+        { id: 'menu', title: 'Menu' },
+        { id: 'sante', title: en ? 'Health' : 'Santé' },
+      ],
+    });
+  } else if (n % 3 === 0) {
+    replies.push({
+      type: 'text',
+      text: en
+        ? `I’m happy to riff a bit 😄 I’m still *${persona.name}* at AGC — type *menu* when you want insurance.`
+        : `Je peux papoter un peu 😄 Je reste *${persona.name}* chez AGC — tapez *menu* dès que vous voulez une assurance.`,
+    });
+  }
   return replies;
 }
 
@@ -920,22 +921,22 @@ function chitchatReply(from, lang, text) {
   const en = lang === 'en';
   const t = norm(text);
   let gag;
-  if (isNonsense(text) || /^[?!.]+$/.test(String(text || '').trim()) || String(text || '').trim().length <= 2) {
+  if (isNonsense(text)) {
     gag = en
-      ? `I got the vibe, not the sentence 😄 Say it in a few words — I’m here.`
-      : `J’ai le vibe, pas la phrase 😄 Dites-le en quelques mots — je suis là.`;
+      ? `I got the vibe, not the sentence 😄 Try *menu*, or tell me auto, health, a city…`
+      : `J’ai le vibe, pas la phrase 😄 Tapez *menu*, ou dites auto, santé, une ville…`;
   } else if (/faim|hungry|mange|food|soif|thirsty/.test(t)) {
     gag = en
-      ? `Ha — I don’t plate ndolé 😅 Eat first. I’ll still be right here.`
-      : `Ha — je ne fais pas le ndolé 😅 Allez manger. Je reste là.`;
+      ? `Ha — I don’t plate ndolé, I cover people 😅 Eat first. Then I’m here for *health* or *motor*.`
+      : `Ha — je ne fais pas le ndolé, je couvre les gens 😅 Allez manger. Après je m’occupe de votre *santé* ou votre *auto*.`;
   } else if (/foot|match|football/.test(t)) {
     gag = en
       ? `I don’t have the score ⚽ I can cover the car that takes you to the stadium though.`
       : `Le score, je n’ai pas ⚽ L’auto qui vous emmène au stade, oui.`;
   } else if (/how old|quel age|tu as quel age|age are you/.test(t)) {
     gag = en
-      ? `Old enough to know AGC since *2002* 😄 I don’t do birthday cake.`
-      : `Assez pour connaître AGC depuis *2002* 😄 Pas de gâteau d’anniversaire ici.`;
+      ? `Old enough to know AGC since *2002* 😄 I cover cars and people — not my birthday. *Menu*?`
+      : `Assez pour connaître AGC depuis *2002* 😄 Je couvre les voitures et les gens — pas mon anniversaire. *Menu* ?`;
   } else if (/color|couleur|moon|lune/.test(t)) {
     gag = en
       ? `The moon can look silver — I cover cars, not astronomy 🌙 Tap *menu* when you want AGC.`
@@ -948,16 +949,6 @@ function chitchatReply(from, lang, text) {
     gag = en
       ? `That’s kind — I’m *${persona.name}*, AGC advisor, not on a dating app 😅 Motor, health, travel: that’s my lane.`
       : `C’est gentil — je suis *${persona.name}*, conseillère AGC, pas sur une appli de rencontre 😅 Auto, santé, voyage : c’est ma voie.`;
-  } else if (/t es qui|c est qui|qui es tu|qui etes vous|who are you|what is your name|ton nom/.test(t)) {
-    gag = en
-      ? `I’m *${persona.name}* ☺️ ${persona.titleEn}. Open *Options* when you want a product.`
-      : `Je suis *${persona.name}* ☺️ ${persona.titleFr}. Ouvrez *Options* pour un produit.`;
-  } else if (/^(pourquoi|why)$/.test(t)) {
-    gag = en ? `Why what? Give me a sentence 😊` : `Pourquoi quoi ? Une phrase et j’y vais 😊`;
-  } else if (/stop noise|tais toi|silence/.test(t)) {
-    gag = en
-      ? `Volume down. I’m still here if you need AGC.`
-      : `Je baisse le volume. Je reste là si vous avez besoin d’AGC.`;
   } else if (/are you real|tu es vraie|tu es un bot|robot|chatgpt|ia\b/.test(t)) {
     gag = en
       ? `I’m *${persona.name}*, AGC’s WhatsApp advisor. Real answers, real branches. Not a mystery AI in a cave 😊`
@@ -968,8 +959,8 @@ function chitchatReply(from, lang, text) {
       : `Pourquoi la voiture est allée chez AGC ? Elle en avait marre des surprises 🚗😄 *Menu* quand vous avez fini de rire.`;
   } else if (/météo|meteo|weather/.test(t)) {
     gag = en
-      ? `I don’t do the sky ☁️ I do the umbrella called insurance.`
-      : `Le ciel, ce n’est pas moi ☁️ Le parapluie qui s’appelle assurance, si.`;
+      ? `I don’t do the sky ☁️ I do the umbrella called insurance. Health or motor?`
+      : `Le ciel, ce n’est pas moi ☁️ Le parapluie qui s’appelle assurance, si. Santé ou auto ?`;
   } else if (/homework|devoir|dissertation/.test(t)) {
     gag = en
       ? `I won’t write your homework. I will help with an AGC *quote* or a *branch*.`
@@ -978,14 +969,14 @@ function chitchatReply(from, lang, text) {
     gag = en
       ? `I leave that to the palaver tree. Here it’s AGC: auto, health, claims, branches.`
       : `Ça, c’est sous l’arbre à palabres. Ici c’est AGC : auto, santé, sinistres, agences.`;
-  } else if (/\b2\s*\+?\s*2\b/.test(String(text)) || /^2 2$/.test(t)) {
+  } else if (/\b2\s*\+?\s*2\b/.test(String(text)) || /^2 2$/.test(t) || /^(quoi|what|pourquoi|why)\s*\??$/.test(t)) {
     gag = en
       ? `4 — and I’m still better on *quotes* than on maths class 😊`
       : `4 — et je suis plus forte sur les *devis* que sur le cours de maths 😊`;
   } else if (/belife|axa|saham|askania|sunu/.test(t)) {
     gag = en
-      ? `I speak for *Assurances Générales du Cameroun (AGC)* only. Want our menu, a branch, or a quote request?`
-      : `Je parle pour *Assurances Générales du Cameroun (AGC)* seulement. Menu, agence, ou demande de devis ?`;
+      ? `I speak for *AGC Assurances* only. Want our menu, a branch, or a quote request?`
+      : `Je parle pour *AGC Assurances* seulement. Menu, agence, ou demande de devis ?`;
   } else {
     gag = en
       ? `Noted 😄 I’m *${persona.name}* at AGC — not a 24h gossip line, but I won’t vanish. *Menu* when you want insurance.`
@@ -1111,15 +1102,6 @@ async function processMessage({ from, text, payload }) {
   }
 
   if (!trimmed) return welcomeOrMenu(from);
-  if (isAck(trimmed)) return ackReply(langOf(from));
-  if (
-    isOffTopic(trimmed) ||
-    isNonsense(trimmed) ||
-    /^[?!.]+$/.test(trimmed) ||
-    (trimmed.length <= 3 && !/^[0-9]+$/.test(trimmed))
-  ) {
-    return chitchatReply(from, langOf(from), trimmed);
-  }
   return freeTalk(from, trimmed, {});
 }
 

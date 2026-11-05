@@ -165,7 +165,7 @@ function parseJsonObject(text) {
 
 function classifyPrompt(userText) {
   return [
-    'Map this Assurances Générales du Cameroun (AGC) customer message to ONE intent. Understand meaning, not exact words. Typos, slang, mixed FR/EN are OK.',
+    'Map this AGC Assurances customer message to ONE intent. Understand meaning, not exact words. Typos, slang, mixed FR/EN are OK.',
     'Return ONLY JSON, no markdown:',
     '{"intent":"menu","city":null,"branch":null,"lang":"fr"}',
     '',
@@ -203,30 +203,18 @@ function getClient() {
   }
 }
 
-function raceTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`ai-timeout ${ms}ms`)), ms);
-    }),
-  ]);
-}
-
 async function generateSdk({ model, contents, systemInstruction, temperature, maxOutputTokens }) {
   const ai = getClient();
   if (!ai) throw new Error('sdk missing');
-  const response = await raceTimeout(
-    ai.models.generateContent({
-      model,
-      contents,
-      config: {
-        systemInstruction: systemInstruction || undefined,
-        temperature,
-        maxOutputTokens,
-      },
-    }),
-    5000
-  );
+  const response = await ai.models.generateContent({
+    model,
+    contents,
+    config: {
+      systemInstruction: systemInstruction || undefined,
+      temperature,
+      maxOutputTokens,
+    },
+  });
   return String(response.text || '').trim();
 }
 
@@ -238,7 +226,7 @@ async function generateRest({ model, contents, systemInstruction, temperature, m
   if (systemInstruction) body.system_instruction = { parts: [{ text: systemInstruction }] };
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 5000);
+  const t = setTimeout(() => ctrl.abort(), 12000);
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -267,7 +255,7 @@ async function generate(opts) {
 }
 
 async function withModels(run) {
-  const models = [cachedGeminiModel, defaultModel()].filter(Boolean);
+  const models = [cachedGeminiModel, defaultModel(), 'gemini-2.5-flash', 'gemini-flash-latest'].filter(Boolean);
   const tried = new Set();
   let lastErr = 'no model';
   for (const model of models) {

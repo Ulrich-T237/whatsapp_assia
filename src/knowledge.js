@@ -1,7 +1,7 @@
 const SITE = 'https://agc-assurances.com';
 
 const company = {
-  name: 'Assurances Générales du Cameroun (AGC)',
+  name: 'AGC Assurances',
   slogan: 'Le gage de votre sécurité',
   legal: 'Assurances Générales du Cameroun S.A. — IARDT',
   since: 2002,
