@@ -12,7 +12,7 @@ const {
 } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const { loadAuth, mongoUri } = require('./lib/mongo-auth');
-const { handleIncoming, handleIncomingRich } = require('./src/plain');
+const { handleIncoming } = require('./src/plain');
 const { persona } = require('./src/config');
 const ai = require('./src/ai');
 
@@ -98,70 +98,6 @@ function messageText(msg) {
     m.interactiveResponseMessage?.body?.text ||
     ''
   ).trim();
-}
-
-async function sendRich(jid, replies) {
-  let sent = 0;
-  for (const r of replies || []) {
-    if (!r) continue;
-    try {
-      if (r.type === 'list' && r.sections && r.sections.length) {
-        await sock.sendMessage(jid, {
-          text: r.body || r.header || 'Menu',
-          footer: r.footer || 'ASSIAA · AGC',
-          title: r.header || '',
-          buttonText: r.button || 'Options',
-          sections: r.sections.map((s) => ({
-            title: s.title || 'Menu',
-            rows: (s.rows || []).map((row) => ({
-              title: String(row.title || '').slice(0, 24),
-              rowId: String(row.id || row.title || ''),
-              description: String(row.description || '').slice(0, 72),
-            })),
-          })),
-        });
-        sent += 1;
-        continue;
-      }
-      if (r.type === 'buttons' && r.buttons && r.buttons.length) {
-        await sock.sendMessage(jid, {
-          text: r.body || '',
-          footer: 'ASSIAA · AGC',
-          buttons: r.buttons.slice(0, 3).map((b) => ({
-            buttonId: String(b.id || ''),
-            buttonText: { displayText: String(b.title || '').slice(0, 20) },
-            type: 1,
-          })),
-        });
-        sent += 1;
-        continue;
-      }
-      if (r.type === 'text' && r.text) {
-        await sock.sendMessage(jid, { text: String(r.text) });
-        sent += 1;
-      }
-    } catch (err) {
-      console.error('interactive send:', err.message || err);
-      const lines = [];
-      if (r.text) lines.push(r.text);
-      if (r.body) lines.push(r.body);
-      if (r.sections) {
-        let n = 1;
-        for (const s of r.sections) {
-          for (const row of s.rows || []) {
-            lines.push(`${n}. ${row.title}`);
-            n += 1;
-          }
-        }
-      }
-      if (r.buttons) r.buttons.forEach((b, i) => lines.push(`${i + 1}. ${b.title}`));
-      if (lines.length) {
-        await sock.sendMessage(jid, { text: lines.join('\n') });
-        sent += 1;
-      }
-    }
-  }
-  return sent;
 }
 
 function messageAgeMs(msg) {
@@ -283,12 +219,11 @@ async function startSock() {
         console.log(`[IN ${type}] ${jid} | ${body.slice(0, 120)}`);
         sock.sendPresenceUpdate('composing', jid).catch(() => {});
 
-        const out = await withTimeout(handleIncomingRich(jid, body), 8000, 'reply-timeout');
-        if (out && out.replies && out.replies.length) {
-          const n = await sendRich(jid, out.replies);
-          const preview = out.flat || '';
-          status.lastOut = `${jidUser(jid)}: ${preview.slice(0, 80).replace(/\n/g, ' ')}`;
-          console.log(`[OUT x${n}] ${jid} | ${preview.slice(0, 80).replace(/\n/g, ' ')}…`);
+        const reply = await withTimeout(handleIncoming(jid, body), 18000, 'reply-timeout');
+        if (reply) {
+          await sock.sendMessage(jid, { text: String(reply) });
+          status.lastOut = `${jidUser(jid)}: ${String(reply).slice(0, 80).replace(/\n/g, ' ')}`;
+          console.log(`[OUT] ${jid} | ${reply.slice(0, 80).replace(/\n/g, ' ')}…`);
         } else {
           status.lastSkip = `no-reply ${type}`;
         }
