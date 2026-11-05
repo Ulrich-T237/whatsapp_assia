@@ -14,6 +14,7 @@ const { Boom } = require('@hapi/boom');
 const { loadAuth, mongoUri } = require('./lib/mongo-auth');
 const { handleIncoming } = require('./src/plain');
 const { persona } = require('./src/config');
+const { guessLang } = require('./src/engine');
 const ai = require('./src/ai');
 
 const PORT = Number(process.env.PORT || 3000);
@@ -204,7 +205,7 @@ async function startSock() {
           continue;
         }
 
-        const body = messageText(msg);
+        body = messageText(msg);
         if (!body) {
           status.lastSkip = `empty ${type}`;
           continue;
@@ -219,7 +220,7 @@ async function startSock() {
         console.log(`[IN ${type}] ${jid} | ${body.slice(0, 120)}`);
         sock.sendPresenceUpdate('composing', jid).catch(() => {});
 
-        const reply = await withTimeout(handleIncoming(jid, body), 18000, 'reply-timeout');
+        const reply = await withTimeout(handleIncoming(jid, body), 28000, 'reply-timeout');
         if (reply) {
           await sock.sendMessage(jid, { text: String(reply) });
           status.lastOut = `${jidUser(jid)}: ${String(reply).slice(0, 80).replace(/\n/g, ' ')}`;
@@ -232,11 +233,11 @@ async function startSock() {
         console.error('message:', err.message || err);
         try {
           if (jid && sock) {
-            const en = /\b(hi|hello|hey|how|i'm|im |what|why|hungry|old)\b/i.test(body || '');
+            const en = guessLang(body) === 'en' || /\b(i|you|me|why|who|what|how|the|not|said|am)\b/i.test(body || '');
             await sock.sendMessage(jid, {
               text: en
-                ? "I'm right here 😊 Type *hi* or *menu*."
-                : 'Je suis là 😊 Écrivez *bonjour* ou *menu*.',
+                ? "Still here 😊 I heard you — say it once more in your own words."
+                : 'Je suis toujours là 😊 Reformulez avec vos mots, je vous réponds.',
             });
           }
         } catch {
