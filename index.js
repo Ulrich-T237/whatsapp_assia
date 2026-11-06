@@ -190,10 +190,7 @@ async function startSock() {
           status.lastSkip = 'fromMe';
           continue;
         }
-        if (!msg.message) {
-          status.lastSkip = 'no-message';
-          continue;
-        }
+        if (!msg.message) continue;
         if (!jid || jid === 'status@broadcast') continue;
         if (IGNORE_GROUPS && jid.endsWith('@g.us')) continue;
         if (jid.endsWith('@newsletter') || jid.endsWith('@broadcast')) continue;
@@ -204,7 +201,7 @@ async function startSock() {
           continue;
         }
 
-        const body = messageText(msg);
+        body = messageText(msg);
         if (!body) {
           status.lastSkip = `empty ${type}`;
           continue;
@@ -219,7 +216,7 @@ async function startSock() {
         console.log(`[IN ${type}] ${jid} | ${body.slice(0, 120)}`);
         sock.sendPresenceUpdate('composing', jid).catch(() => {});
 
-        const reply = await withTimeout(handleIncoming(jid, body), 18000, 'reply-timeout');
+        const reply = await withTimeout(handleIncoming(jid, body), 12000, 'reply-timeout');
         if (reply) {
           await sock.sendMessage(jid, { text: String(reply) });
           status.lastOut = `${jidUser(jid)}: ${String(reply).slice(0, 80).replace(/\n/g, ' ')}`;
@@ -231,16 +228,15 @@ async function startSock() {
         status.lastError = String(err.message || err).slice(0, 180);
         console.error('message:', err.message || err);
         try {
-          if (jid && sock) {
-            const en = /\b(hi|hello|hey|how|i'm|im |what|why|hungry|old)\b/i.test(body || '');
-            await sock.sendMessage(jid, {
-              text: en
-                ? "I'm right here 😊 Type *hi* or *menu*."
-                : 'Je suis là 😊 Écrivez *bonjour* ou *menu*.',
-            });
+          if (jid && sock && body) {
+            const quick = await ai.quickReply(body, /\b(i|you|your|name|how|what|who|why|hungry)\b/i.test(body) ? 'en' : 'fr');
+            if (quick) {
+              await sock.sendMessage(jid, { text: String(quick) });
+              status.lastOut = `${jidUser(jid)}: ${String(quick).slice(0, 80).replace(/\n/g, ' ')}`;
+            }
           }
-        } catch {
-          /* ignore */
+        } catch (e2) {
+          console.error('quick:', e2.message || e2);
         }
       } finally {
         if (jid) busy.delete(jid);
