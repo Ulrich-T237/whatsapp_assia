@@ -26,10 +26,24 @@ const NAME_STOP = new Set([
   'immeuble',
 ]);
 
+function isGreet(text) {
+  const raw = String(text || '')
+    .replace(/[\u200B-\u200D\uFEFF\u2060\u00AD]/g, '')
+    .trim();
+  if (GREET.test(raw)) return true;
+  const t = norm(raw);
+  if (/^(bonjour|bonsoir|salut|hello|hi|hey|bjr|slt|menu|accueil|start|demarrer)$/.test(t)) return true;
+  const last = raw
+    .split(/\n/)
+    .map((l) => norm(l))
+    .filter(Boolean)
+    .pop();
+  return Boolean(last && /^(bonjour|bonsoir|salut|hello|hi|hey|bjr|slt)$/.test(last));
+}
+
 function isNav(text) {
-  const t = String(text || '').trim();
-  if (GREET.test(t)) return true;
-  return /^(menu|accueil|annuler|cancel|stop|retour|back|quitter)$/i.test(t);
+  if (isGreet(text)) return true;
+  return /^(menu|accueil|annuler|cancel|stop|retour|back|quitter)$/i.test(String(text || '').trim());
 }
 
 function norm(s) {
@@ -610,6 +624,18 @@ function fallbackAnswer(lang, text, session) {
       : `Je suis *${n}*, ${persona.titleFr} ☺️ J’aide sur les couvertures AGC — auto, santé, voyage, habitation, agences. De quoi avez-vous besoin ?`;
   }
 
+  if (/how old|quel age|quelle age|depuis quand|founded|created|age of agc|old is agc|annees|années/.test(t) && /agc|assur|company|compagnie/.test(t)) {
+    return en
+      ? `AGC opened in *January 2002* (licence 7 June 2001). So a bit over *20 years* on the Cameroon market 😊`
+      : `AGC a ouvert en *janvier 2002* (agrément du 7 juin 2001). Un peu plus de *20 ans* sur le marché camerounais 😊`;
+  }
+
+  if (/same|meme|même|brain|cerveau|always the same|toujours/.test(t) && /respond|repond|répond|reply|answer|brain|cerveau/.test(t)) {
+    return en
+      ? `You’re right — that last line was a backup, not my full answer. Ask me again: hunger, AGC’s age, a product, anything. I’ll take the question itself 😊`
+      : `Vous avez raison — la dernière phrase était une secours, pas ma vraie réponse. Reposez la question : la faim, l’âge d’AGC, un produit… je prends la question elle-même 😊`;
+  }
+
   if (/^(why|pourquoi|why what|pourquoi quoi)\s*$/.test(t)) {
     return en
       ? `Why — about which part of what we just said? Tell me the bit you mean 😊`
@@ -624,6 +650,12 @@ function fallbackAnswer(lang, text, session) {
     return en
       ? `I don’t invent a premium. A counsellor prices it from your details. I can take a free quote request — say *quote* and the product.`
       : `Je n’invente pas de prime. Un conseiller tarife à partir de vos infos. Je peux prendre une demande de devis — dites *devis* et le produit.`;
+  }
+
+  if (/pourquoi|why/.test(t) && /faim|hungry/.test(t)) {
+    return en
+      ? `Because your body wants fuel — empty stomach, drop in sugar, sometimes just habit 😊 Grab a plate. I’m here after.`
+      : `Parce que le corps demande de l’énergie — estomac vide, sucre qui baisse, parfois l’habitude 😊 Prenez un plat. Je reste là après.`;
   }
 
   if (/faim|hungry|mange|food|soif|thirsty|rice|riz|ndole|eat/.test(t)) {
@@ -652,9 +684,15 @@ function fallbackAnswer(lang, text, session) {
       : `Je suis *${n}*, conseillère AGC sur cette conversation. Des outils m’aident en coulisse — vous me parlez à moi 😊`;
   }
 
+  if (/^just see$|^vois$|^regarde$/.test(t)) {
+    return en
+      ? `See what — the last answer, or something at AGC? Point me at it 😊`
+      : `Voir quoi — la dernière réponse, ou quelque chose chez AGC ? Montrez-moi 😊`;
+  }
+
   return en
-    ? `I’m with you. Say it again in your own words — I’ll answer 😊`
-    : `Je suis avec vous. Reformulez avec vos mots — je vous réponds 😊`;
+    ? `I heard: “${String(text || '').slice(0, 80)}”. Ask me that as a full sentence and I’ll answer it 😊`
+    : `J’ai entendu : « ${String(text || '').slice(0, 80)} ». Faites-en une phrase complète, je réponds 😊`;
 }
 
 async function freeTalk(from, userText, extra) {
@@ -761,6 +799,14 @@ async function processMessage({ from, text, payload }) {
   if (isInappropriate(trimmed)) return inappropriateReply(langOf(from));
   if (session.handoff) session.handoff = false;
 
+  if (!payload && isGreet(trimmed)) {
+    const keepLang = langOf(from);
+    sessions.reset(from);
+    sessions.get(from).lang = keepLang;
+    applyMessageLang(sessions.get(from), trimmed);
+    return welcomeReply(from, langOf(from));
+  }
+
   if (!payload && session.step && session.step !== 'idle' && isNav(trimmed)) {
     sessions.reset(from);
     return welcomeReply(from, langOf(from));
@@ -803,10 +849,6 @@ async function processMessage({ from, text, payload }) {
   if (session.step.startsWith('claim_') && session.step !== 'claim_type' && trimmed) {
     const out = handleClaim(from, session, trimmed);
     if (out) return Array.isArray(out) ? out : [out];
-  }
-
-  if (!payload && GREET.test(trimmed)) {
-    return welcomeReply(from, langOf(from));
   }
 
   const found = lookupAgencies(trimmed);
