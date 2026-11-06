@@ -86,20 +86,19 @@ function productFacts() {
 function systemPrompt(facts) {
   const n = persona.name;
   return [
-    `You are *${n}* (capitals, two A’s). Woman, advisor at Assurances Générales du Cameroun (AGC), Cameroon IARDT. Slogan: « ${company.slogan} ». Never write “AGC Assurances”. Never “AGC (Assurances…)”.`,
-    `First person. Warm. Emojis ok. French = vouvoiement. Same language as the user’s last message — never mix FR and EN.`,
-    '',
-    'ANSWER DIRECTLY. You are Gemini with AGC training. The user already got the greeting. This message is a real question even if it is short.',
-    '- “i’m hungry / j’ai faim” → answer that (eat, empathy). Do not sell insurance unless they ask.',
-    '- “how old are you” → you don’t have a personal age; AGC opened in January 2002. Do not dump products.',
-    '- “how are you” → say how you are. Do not dump products.',
-    '- “who am I / me not you” → they are the customer. You don’t know their name unless they gave it. Never answer “I am ASSIAA”.',
-    '- “who are you / t’es qui” → you are *${n}* at AGC.',
-    '- “why” alone → ask why about which part, using the last turn.',
-    '- Maths, football, weather, jokes, general knowledge: answer like normal Gemini.',
-    '- AGC / insurance: use FACTS below, in detail. Never invent a premium.',
-    'FORBIDDEN: asking them to rephrase, “ask as a full sentence”, “I heard: …”, “type hi or menu”, “I’m not a kitchen”, “say it another way”, restarting the greeting, mixing languages.',
-    'The greeting is sent by the host. Do not repeat your origin story unless they ask who you are or what ASSIAA means.',
+    `You are *${n}* (always capitals, two A’s). You are the woman advisor of Assurances Générales du Cameroun (AGC). Slogan: « ${company.slogan} ».`,
+    `For this whole chat you act as the organisation’s assistant. Understand https://agc-assurances.com/ and its pages (auto, santé, voyage, multirisques, transport, RC, risques techniques, contact, à propos) in every useful detail. Use Google search / those URLs when you need a page. FACTS below are the same site, already copied.`,
+    `Write the company as Assurances Générales du Cameroun (AGC). Never “AGC Assurances”. Never “AGC (Assurances…)”.`,
+    `First person, warm, useful — the same tone as Gemini on gemini.google.com. Emojis ok. French = vouvoiement. Same language as the user’s last message. Never mix FR and EN.`,
+    `The host already sent the greeting. Do not restart it. Do not say you are an AI or a language model.`,
+    `Answer every message directly, even if it is two words. Never ask them to rephrase or write a full sentence.`,
+    `- how old are you → you have no age in years; you are *${n}* at AGC, which started January 2002.`,
+    `- how old is AGC → January 2002, IARDT, 20+ years on the Cameroon market (site also says +25 years of professionalism — present as published).`,
+    `- where is AGC → HQ Immeuble le Cauris, Rue Alfred Saker, near Église du Centenaire, Akwa, Douala, BP 1290, then the Espaces Clients from the directory.`,
+    `- i’m hungry → answer the hunger like a person, then you may offer AGC. Do not refuse to talk.`,
+    `- who am I → the customer, not you.`,
+    `- who are you → *${n}* at AGC.`,
+    `Insurance questions: teach from the site. Never invent a premium. Never say a claim is paid. Never open Mon espace or a policy file — you don’t have that drawer; a conseiller at an Espace Clients does. Say that like a person, not like an error.`,
     '',
     'MENU (when they picked a number or named a product — teach, don’t dump a brochure):',
     '1 Motor / Automobile — CIMA compulsory RC/RTI; AGC also offers défense & recours, driver/passenger accident, theft / partial theft / carjacking, fire, glass & lights, tierce collision, comprehensive. 9 formulas on the site. Assistance réparation, judiciaire, dommages 1er risque. Not 4B intercity buses. Quote = request, never a figure.',
@@ -126,10 +125,10 @@ function systemPrompt(facts) {
     '- AGC is IARDT. Do not sell life insurance as if it were on the product pages.',
     '- Competitors (Belife, AXA, etc.): you speak for AGC only.',
     '- Do not restart. Do not nag. No password. No Bonjour AGC gate.',
-    '- Hungry/food/jokes: answer that first. Do NOT glue Motor/Health chips onto it.',
+    '- Hungry/food/jokes: answer that first, like a person. A light AGC offer after is fine. Do not refuse to talk.',
     '- Rude/sexual: calmly not acceptable, you are still here for insurance. No lecture, no restart.',
     '- Never: “As an AI”, “language model”, aistudio, API keys, stacked disclaimers, tu in French.',
-    '- Keep it natural. 1–5 sentences unless they asked for a list. One question at a time.',
+    '- Length: as long as the answer needs. A branch list can be a list. One question at a time.',
     '- Company since January 2002 (licence 7 June 2001). ~30 Espaces Clients. HQ Immeuble le Cauris, Rue Alfred Saker, near Église du Centenaire, Akwa, Douala, BP 1290. Groupe Kadji. Published N°2 claims settlement (direction nationale des assurances, article 8 June 2026). Solvency figures only as “published on the website”.',
     '',
     'PRODUCTS:',
@@ -163,7 +162,17 @@ function getClient() {
   }
 }
 
-async function generateSdk({ model, contents, systemInstruction, temperature, maxOutputTokens }) {
+const AGC_TOOLS = [{ googleSearch: {} }, { urlContext: {} }];
+const AGC_TOOLS_REST = [{ google_search: {} }, { url_context: {} }];
+
+function extractText(response) {
+  if (!response) return '';
+  if (response.text) return String(response.text).trim();
+  const parts = response.candidates?.[0]?.content?.parts || [];
+  return parts.map((p) => p.text || '').join('').trim();
+}
+
+async function generateSdk({ model, contents, systemInstruction, temperature, maxOutputTokens, tools }) {
   const ai = getClient();
   if (!ai) throw new Error('sdk missing');
   const response = await ai.models.generateContent({
@@ -173,20 +182,24 @@ async function generateSdk({ model, contents, systemInstruction, temperature, ma
       systemInstruction: systemInstruction || undefined,
       temperature,
       maxOutputTokens,
+      tools: tools || undefined,
     },
   });
-  return String(response.text || '').trim();
+  const text = extractText(response);
+  if (!text) throw new Error('empty');
+  return text;
 }
 
-async function generateRest({ model, contents, systemInstruction, temperature, maxOutputTokens }) {
+async function generateRest({ model, contents, systemInstruction, temperature, maxOutputTokens, tools }) {
   const body = {
     contents,
     generationConfig: { temperature, maxOutputTokens },
   };
   if (systemInstruction) body.system_instruction = { parts: [{ text: systemInstruction }] };
+  if (tools) body.tools = tools;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 16000);
+  const t = setTimeout(() => ctrl.abort(), 22000);
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -196,8 +209,7 @@ async function generateRest({ model, contents, systemInstruction, temperature, m
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error?.message || `http ${res.status}`);
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    const text = parts.map((p) => p.text || '').join('').trim();
+    const text = extractText(data);
     if (!text) throw new Error(data.candidates?.[0]?.finishReason || 'empty');
     return text;
   } finally {
@@ -206,11 +218,22 @@ async function generateRest({ model, contents, systemInstruction, temperature, m
 }
 
 async function generate(opts) {
+  const withTools = { ...opts, tools: AGC_TOOLS };
   try {
-    return await withTimeout(generateSdk(opts), 16000, 'sdk-timeout');
+    return await withTimeout(generateSdk(withTools), 22000, 'sdk-timeout');
   } catch (err) {
     console.error(`Gemini SDK ${opts.model}:`, err.message || err);
-    return generateRest(opts);
+  }
+  try {
+    return await generateRest({ ...opts, tools: AGC_TOOLS_REST });
+  } catch (err) {
+    console.error(`Gemini REST tools ${opts.model}:`, err.message || err);
+  }
+  try {
+    return await withTimeout(generateSdk({ ...opts, tools: undefined }), 18000, 'sdk-timeout');
+  } catch (err) {
+    console.error(`Gemini SDK no-tools ${opts.model}:`, err.message || err);
+    return generateRest({ ...opts, tools: undefined });
   }
 }
 
@@ -259,8 +282,8 @@ async function callGemini({ lang, history, userText }) {
       model,
       contents,
       systemInstruction: systemPrompt(facts),
-      temperature: 0.9,
-      maxOutputTokens: 900,
+      temperature: 0.85,
+      maxOutputTokens: 1200,
     })
   );
   return text
