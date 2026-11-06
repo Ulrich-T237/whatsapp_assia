@@ -26,24 +26,10 @@ const NAME_STOP = new Set([
   'immeuble',
 ]);
 
-function isGreet(text) {
-  const raw = String(text || '')
-    .replace(/[\u200B-\u200D\uFEFF\u2060\u00AD]/g, '')
-    .trim();
-  if (GREET.test(raw)) return true;
-  const t = norm(raw);
-  if (/^(bonjour|bonsoir|salut|hello|hi|hey|bjr|slt|menu|accueil|start|demarrer)$/.test(t)) return true;
-  const last = raw
-    .split(/\n/)
-    .map((l) => norm(l))
-    .filter(Boolean)
-    .pop();
-  return Boolean(last && /^(bonjour|bonsoir|salut|hello|hi|hey|bjr|slt)$/.test(last));
-}
-
 function isNav(text) {
-  if (isGreet(text)) return true;
-  return /^(menu|accueil|annuler|cancel|stop|retour|back|quitter)$/i.test(String(text || '').trim());
+  const t = String(text || '').trim();
+  if (GREET.test(t)) return true;
+  return /^(menu|accueil|annuler|cancel|stop|retour|back|quitter)$/i.test(t);
 }
 
 function norm(s) {
@@ -574,126 +560,7 @@ function counselor(from) {
   return { type: 'text', text: counselorText(en) };
 }
 
-function isInappropriate(text) {
-  const t = ` ${norm(text)} `;
-  return (
-    /\b(nique|encule|encul|fdp|pute|salope|connard|pd\b|ntm|tg\b|ta gueule|fuck|shit|bitch|asshole|porn|porno|xxx|nude|nudes|rape|viol moi|kill yourself|suicide toi)\b/.test(
-      t
-    ) || /sex\s*(chat|pic|pics|photo|video|vid)/.test(t)
-  );
-}
 
-function inappropriateReply(lang) {
-  const en = lang === 'en';
-  return [
-    {
-      type: 'text',
-      text: en
-        ? `I’m *${persona.name}*, ${persona.titleEn}. That message is not OK here — we stay respectful 🙏\n\nIf you need insurance, I’m still here.`
-        : `Je suis *${persona.name}*, ${persona.titleFr}. Ce message n’a pas sa place ici — on reste courtois 🙏\n\nSi vous avez besoin d’une assurance, je suis toujours là.`,
-    },
-  ];
-}
-
-function cannotDisclose(en, what) {
-  return en
-    ? `I don’t have access to ${what} from this chat, and I won’t pretend I do. A conseiller at an AGC Espace Clients can open it with you — tell me your city and I’ll give you the branch 😊`
-    : `Je n’ai pas accès à ${what} depuis cette conversation, et je ne vais pas faire semblant. Un conseiller dans un Espace Clients AGC peut l’ouvrir avec vous — dites-moi votre ville, je vous donne l’agence 😊`;
-}
-
-function fallbackAnswer(lang, text, session) {
-  const n = persona.name;
-  const en = lang === 'en';
-  const t = norm(text);
-  const name = session && session.data && session.data.name;
-
-  if (/\b(who am i|who i am|c est qui moi|je suis qui|qui suis je|me not you|not you|i said me|pas vous|c est moi)\b/.test(t)) {
-    if (name) {
-      return en
-        ? `You — in this chat you told me your name is *${name}*. That’s all I know about you unless you add more 😊`
-        : `Vous — dans cette conversation vous m’avez dit vous appeler *${name}*. C’est tout ce que je sais de vous, sauf si vous ajoutez 😊`;
-    }
-    return en
-      ? `You — I only know what you’ve told me here, and you haven’t given me your name yet 😊 What should I call you?`
-      : `Vous — je ne connais que ce que vous m’avez dit ici, et vous ne m’avez pas encore donné votre nom 😊 Comment dois-je vous appeler ?`;
-  }
-
-  if (/\b(who are you|who r you|t es qui|tu es qui|vous etes qui|c est qui|tes qui|who is this)\b/.test(t) && !/\bam i\b/.test(t)) {
-    return en
-      ? `I’m *${n}*, ${persona.titleEn} ☺️ I help with AGC cover — cars, health, travel, home, branches. What do you need?`
-      : `Je suis *${n}*, ${persona.titleFr} ☺️ J’aide sur les couvertures AGC — auto, santé, voyage, habitation, agences. De quoi avez-vous besoin ?`;
-  }
-
-  if (/how old|quel age|quelle age|depuis quand|founded|created|age of agc|old is agc|annees|années/.test(t) && /agc|assur|company|compagnie/.test(t)) {
-    return en
-      ? `AGC opened in *January 2002* (licence 7 June 2001). So a bit over *20 years* on the Cameroon market 😊`
-      : `AGC a ouvert en *janvier 2002* (agrément du 7 juin 2001). Un peu plus de *20 ans* sur le marché camerounais 😊`;
-  }
-
-  if (/same|meme|même|brain|cerveau|always the same|toujours/.test(t) && /respond|repond|répond|reply|answer|brain|cerveau/.test(t)) {
-    return en
-      ? `You’re right — that last line was a backup, not my full answer. Ask me again: hunger, AGC’s age, a product, anything. I’ll take the question itself 😊`
-      : `Vous avez raison — la dernière phrase était une secours, pas ma vraie réponse. Reposez la question : la faim, l’âge d’AGC, un produit… je prends la question elle-même 😊`;
-  }
-
-  if (/^(why|pourquoi|why what|pourquoi quoi)\s*$/.test(t)) {
-    return en
-      ? `Why — about which part of what we just said? Tell me the bit you mean 😊`
-      : `Pourquoi — à propos de quelle partie de ce qu’on vient de dire ? Précisez 😊`;
-  }
-
-  if (/\b(mon espace|attestation|solde|police number|n de police|contrat n)\b/.test(t) || /\b(covered|suis je couvert|je suis assure)\b/.test(t)) {
-    return cannotDisclose(en, en ? 'your policy file, attestation or Mon espace' : 'votre contrat, votre attestation ou Mon espace');
-  }
-
-  if (/combien|how much|tarif|prime|prix|premium|cout|coût/.test(t) && /auto|sante|voyage|mrh|assurance|cover|insurance/.test(t)) {
-    return en
-      ? `I don’t invent a premium. A counsellor prices it from your details. I can take a free quote request — say *quote* and the product.`
-      : `Je n’invente pas de prime. Un conseiller tarife à partir de vos infos. Je peux prendre une demande de devis — dites *devis* et le produit.`;
-  }
-
-  if (/pourquoi|why/.test(t) && /faim|hungry/.test(t)) {
-    return en
-      ? `Because your body wants fuel — empty stomach, drop in sugar, sometimes just habit 😊 Grab a plate. I’m here after.`
-      : `Parce que le corps demande de l’énergie — estomac vide, sucre qui baisse, parfois l’habitude 😊 Prenez un plat. Je reste là après.`;
-  }
-
-  if (/faim|hungry|mange|food|soif|thirsty|rice|riz|ndole|eat/.test(t)) {
-    return en
-      ? `Then eat 😊 I’m not a kitchen — I’m here when you’re ready to talk.`
-      : `Alors allez manger 😊 Je ne suis pas une cuisine — je suis là quand vous serez prêt.`;
-  }
-
-  if (/how are you|ca va|comment vas|comment allez/.test(t)) {
-    return en
-      ? `I’m well, thank you 😊 How are you — and how can I help?`
-      : `Je vais bien, merci 😊 Et vous — comment puis-je vous aider ?`;
-  }
-
-  if (/\b2\s*\+?\s*2\b/.test(String(text)) || /^2 2$/.test(t)) {
-    return en ? `4 😊` : `4 😊`;
-  }
-
-  if (/where is agc|ou est agc|head office|siege|headquarters/.test(t)) {
-    return hqText(en);
-  }
-
-  if (/are you real|tu es un bot|robot|chatgpt|gemini|ia\b/.test(t)) {
-    return en
-      ? `I’m *${n}*, AGC’s advisor on this chat. I use tools behind the scenes — you talk to me, not to a cave of robots 😊`
-      : `Je suis *${n}*, conseillère AGC sur cette conversation. Des outils m’aident en coulisse — vous me parlez à moi 😊`;
-  }
-
-  if (/^just see$|^vois$|^regarde$/.test(t)) {
-    return en
-      ? `See what — the last answer, or something at AGC? Point me at it 😊`
-      : `Voir quoi — la dernière réponse, ou quelque chose chez AGC ? Montrez-moi 😊`;
-  }
-
-  return en
-    ? `I heard: “${String(text || '').slice(0, 80)}”. Ask me that as a full sentence and I’ll answer it 😊`
-    : `J’ai entendu : « ${String(text || '').slice(0, 80)} ». Faites-en une phrase complète, je réponds 😊`;
-}
 
 async function freeTalk(from, userText, extra) {
   const session = sessions.get(from);
@@ -701,63 +568,23 @@ async function freeTalk(from, userText, extra) {
   const topic = extra && extra.topic;
   let asked = String(userText || '').trim();
   if (topic) {
-    asked += `\n[Context: the user selected AGC menu item “${topic}”. Answer from AGC facts for that item. Vary the wording. Never invent a premium. Do not restart the greeting.]`;
+    asked += `\n[Context: the user selected AGC menu item “${topic}”. Answer from AGC facts for that item. Never invent a premium. Do not restart the greeting.]`;
   }
   if (session.data && session.data.name) {
     asked += `\n[Name they shared in this chat: ${session.data.name}]`;
   }
-  if (ai.isConfigured()) {
-    const guide = await ai.chat({ lang: spoken, history: session.history || [], userText: asked });
-    if (guide.ok && guide.text) {
-      remember(session, userText, guide.text);
-      return [{ type: 'text', text: guide.text }];
-    }
+  const guide = await ai.chat({ lang: spoken, history: session.history || [], userText: asked });
+  if (guide.ok && guide.text) {
+    remember(session, userText, guide.text);
+    return [{ type: 'text', text: guide.text }];
   }
-  if (topic && products[topic]) return productReply(topic, spoken);
-  if (topic === 'horaires') return [hoursReply(spoken)];
-  if (topic === 'carte') return [carteSante(spoken)];
-  if (topic === 'autres') return otherProducts(spoken);
-  if (topic === 'agences') return [agencyMenu(spoken)];
-  const reply = fallbackAnswer(spoken, userText, session);
-  remember(session, userText, reply);
-  return [{ type: 'text', text: reply }];
+  return [];
 }
 
 function handlePayload(from, payload) {
   const lang = langOf(from);
   if (!payload) return null;
   if (payload === 'menu' || payload === 'activate') return welcomeReply(from, lang);
-  if (payload.startsWith('devis_')) return [startQuote(from, payload.slice(6))];
-  if (payload.startsWith('qp_')) return [startQuote(from, payload.slice(3))];
-  if (payload.startsWith('reg_')) {
-    return [
-      regionReply(payload.slice(4), lang),
-      {
-        type: 'buttons',
-        body: lang === 'en' ? 'Another region?' : 'Autre région ?',
-        buttons: [
-          { id: 'agences', title: lang === 'en' ? 'Regions' : 'Régions' },
-          { id: 'menu', title: 'Menu' },
-        ],
-      },
-    ];
-  }
-  if (payload.startsWith('cl_')) {
-    sessions.setStep(from, 'claim_policy', { claimType: payload.slice(3) });
-    return {
-      type: 'text',
-      text:
-        lang === 'en'
-          ? 'What is your AGC *policy number*? (or type *unknown* — I cannot open the file from here.)'
-          : 'Quel est votre *n° de police* AGC ? (ou tapez *inconnu* — je n’ouvre pas le dossier depuis ici.)',
-    };
-  }
-  if (payload === 'devis') {
-    sessions.setStep(from, 'quote_product');
-    return [quoteProductList(lang)];
-  }
-  if (payload === 'sinistre') return [startClaim(from)];
-  if (payload === 'conseiller') return [counselor(from)];
   if (payload === 'lang_en') {
     sessions.get(from).lang = 'en';
     return [{ type: 'text', text: `Perfect — *${persona.name}* will stay with you in English 😊` }, mainMenu('en')];
@@ -796,72 +623,17 @@ async function processMessage({ from, text, payload }) {
     return [{ type: 'text', text: `Parfait — *${persona.name}* continue avec vous en français 😊` }, mainMenu('fr')];
   }
 
-  if (isInappropriate(trimmed)) return inappropriateReply(langOf(from));
-  if (session.handoff) session.handoff = false;
-
-  if (!payload && isGreet(trimmed)) {
-    const keepLang = langOf(from);
-    sessions.reset(from);
-    sessions.get(from).lang = keepLang;
-    applyMessageLang(sessions.get(from), trimmed);
-    return welcomeReply(from, langOf(from));
-  }
-
-  if (!payload && session.step && session.step !== 'idle' && isNav(trimmed)) {
-    sessions.reset(from);
-    return welcomeReply(from, langOf(from));
-  }
-
-  if (payload === 'horaires') return [hoursReply(langOf(from))];
-  if (payload === 'hq') return [{ type: 'text', text: hqText(langOf(from) === 'en') }];
-
-  if (
-    payload &&
-    (products[payload] || payload === 'autres' || payload === 'multi' || payload === 'transport' || payload === 'rc' || payload === 'carte')
-  ) {
-    return freeTalk(from, trimmed || payload, { topic: payload });
-  }
-
   if (payload) {
     const out = handlePayload(from, payload);
     if (out) return Array.isArray(out) ? out : [out];
   }
 
-  if (session.step === 'quote_product' && trimmed) {
-    const out = handleQuoteProduct(from, session, trimmed);
-    if (out) return Array.isArray(out) ? out : [out];
-  }
-
-  if (session.step.startsWith('quote_') && session.step !== 'quote_product' && trimmed) {
-    const out = handleQuote(from, session, trimmed);
-    if (out) return Array.isArray(out) ? out : [out];
-  }
-
-  if (session.step === 'claim_type' && trimmed) {
-    const mapped = mapClaimType(trimmed);
-    if (mapped) {
-      const out = handlePayload(from, `cl_${mapped}`);
-      if (out) return Array.isArray(out) ? out : [out];
-    }
-    return [startClaim(from)];
-  }
-
-  if (session.step.startsWith('claim_') && session.step !== 'claim_type' && trimmed) {
-    const out = handleClaim(from, session, trimmed);
-    if (out) return Array.isArray(out) ? out : [out];
-  }
-
-  const found = lookupAgencies(trimmed);
-  if (found && found.length) {
-    const asksAgency = /agence|agences|branch|branches|bureau|espace client|ou est|ou se trouve|trouver/.test(norm(trimmed));
-    const shortPlace = norm(trimmed).split(' ').length <= 3;
-    if (asksAgency || shortPlace) {
-      return agencyListReply(found, langOf(from));
-    }
+  if (!payload && GREET.test(trimmed)) {
+    return welcomeReply(from, langOf(from));
   }
 
   if (!trimmed) return welcomeReply(from, langOf(from));
-  return freeTalk(from, trimmed, {});
+  return freeTalk(from, trimmed || payload, payload ? { topic: payload } : {});
 }
 
 module.exports = { processMessage, mainMenu, guessLang };
