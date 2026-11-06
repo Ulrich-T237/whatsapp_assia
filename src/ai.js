@@ -162,17 +162,18 @@ function getClient() {
   }
 }
 
-const AGC_TOOLS = [{ googleSearch: {} }, { urlContext: {} }];
-const AGC_TOOLS_REST = [{ google_search: {} }, { url_context: {} }];
-
 function extractText(response) {
   if (!response) return '';
-  if (response.text) return String(response.text).trim();
+  try {
+    if (response.text) return String(response.text).trim();
+  } catch {
+    /* getter can throw when there is no text part */
+  }
   const parts = response.candidates?.[0]?.content?.parts || [];
   return parts.map((p) => p.text || '').join('').trim();
 }
 
-async function generateSdk({ model, contents, systemInstruction, temperature, maxOutputTokens, tools }) {
+async function generateSdk({ model, contents, systemInstruction, temperature, maxOutputTokens }) {
   const ai = getClient();
   if (!ai) throw new Error('sdk missing');
   const response = await ai.models.generateContent({
@@ -182,7 +183,6 @@ async function generateSdk({ model, contents, systemInstruction, temperature, ma
       systemInstruction: systemInstruction || undefined,
       temperature,
       maxOutputTokens,
-      tools: tools || undefined,
     },
   });
   const text = extractText(response);
@@ -190,16 +190,15 @@ async function generateSdk({ model, contents, systemInstruction, temperature, ma
   return text;
 }
 
-async function generateRest({ model, contents, systemInstruction, temperature, maxOutputTokens, tools }) {
+async function generateRest({ model, contents, systemInstruction, temperature, maxOutputTokens }) {
   const body = {
     contents,
     generationConfig: { temperature, maxOutputTokens },
   };
   if (systemInstruction) body.system_instruction = { parts: [{ text: systemInstruction }] };
-  if (tools) body.tools = tools;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 22000);
+  const t = setTimeout(() => ctrl.abort(), 12000);
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -218,22 +217,11 @@ async function generateRest({ model, contents, systemInstruction, temperature, m
 }
 
 async function generate(opts) {
-  const withTools = { ...opts, tools: AGC_TOOLS };
   try {
-    return await withTimeout(generateSdk(withTools), 22000, 'sdk-timeout');
+    return await withTimeout(generateSdk(opts), 12000, 'sdk-timeout');
   } catch (err) {
     console.error(`Gemini SDK ${opts.model}:`, err.message || err);
-  }
-  try {
-    return await generateRest({ ...opts, tools: AGC_TOOLS_REST });
-  } catch (err) {
-    console.error(`Gemini REST tools ${opts.model}:`, err.message || err);
-  }
-  try {
-    return await withTimeout(generateSdk({ ...opts, tools: undefined }), 18000, 'sdk-timeout');
-  } catch (err) {
-    console.error(`Gemini SDK no-tools ${opts.model}:`, err.message || err);
-    return generateRest({ ...opts, tools: undefined });
+    return generateRest(opts);
   }
 }
 
@@ -283,7 +271,7 @@ async function callGemini({ lang, history, userText }) {
       contents,
       systemInstruction: systemPrompt(facts),
       temperature: 0.85,
-      maxOutputTokens: 1200,
+      maxOutputTokens: 800,
     })
   );
   return text
