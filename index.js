@@ -220,7 +220,7 @@ async function startSock() {
         console.log(`[IN ${type}] ${jid} | ${body.slice(0, 120)}`);
         sock.sendPresenceUpdate('composing', jid).catch(() => {});
 
-        const reply = await withTimeout(handleIncoming(jid, body), 28000, 'reply-timeout');
+        const reply = await withTimeout(handleIncoming(jid, body), 32000, 'reply-timeout');
         if (reply) {
           await sock.sendMessage(jid, { text: String(reply) });
           status.lastOut = `${jidUser(jid)}: ${String(reply).slice(0, 80).replace(/\n/g, ' ')}`;
@@ -331,7 +331,8 @@ const server = http.createServer(async (req, res) => {
         whatsapp: status.ready,
         number: status.number || null,
         ai: ai.isConfigured() ? 'gemini' : 'none',
-        model: ai.defaultModel(),
+        model: (ai.lastStatus && ai.lastStatus().model) || ai.defaultModel(),
+        aiError: (ai.lastStatus && ai.lastStatus().error) || null,
         session: status.store,
         webhook_signed: false,
         lastIn: status.lastIn || null,
