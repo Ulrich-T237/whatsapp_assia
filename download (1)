@@ -1,0 +1,8 @@
+node_modules/
+.env
+data/auth/
+data/leads.json
+data/outbox.json
+*.log
+.wwebjs_auth/
+.wwebjs_cache/
